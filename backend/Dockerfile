@@ -14,7 +14,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy app code
 COPY backend/app ./app
 COPY backend/migrations ./migrations
-COPY backend/.env .env
 
 # Create sandbox directory
 RUN mkdir -p /tmp/agent-sandbox
