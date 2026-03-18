@@ -101,9 +101,13 @@ async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     settings = get_settings()
 
-    # Register all tools
-    register_all_tools()
-    logger.info("All tools registered")
+    # Register all tools (wrap in try/except to prevent startup failure)
+    try:
+        register_all_tools()
+        logger.info("All tools registered")
+    except Exception as e:
+        logger.error(f"Failed to register tools: {e}", exc_info=True)
+        # Don't fail startup if tools can't be registered
 
     # Start scheduler
     if settings.scheduler_enabled:
@@ -129,12 +133,18 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     if settings.scheduler_enabled:
-        from app.automations.scheduler import stop_scheduler
-        stop_scheduler()
+        try:
+            from app.automations.scheduler import stop_scheduler
+            stop_scheduler()
+        except Exception as e:
+            logger.warning(f"Error stopping scheduler: {e}")
     
     # Stop Telegram polling
-    from app.channels.telegram import stop_polling
-    await stop_polling()
+    try:
+        from app.channels.telegram import stop_polling
+        await stop_polling()
+    except Exception as e:
+        logger.warning(f"Error stopping Telegram polling: {e}")
     
     logger.info("Shutdown complete")
 
@@ -197,7 +207,19 @@ def create_app() -> FastAPI:
 
     @app.get("/health")
     async def health():
+        """Simple health check — just confirms the app is running."""
         return {"status": "ok"}
+    
+    @app.get("/ready")
+    async def readiness():
+        """Readiness check — confirms app is ready to handle requests."""
+        try:
+            # Try to get settings (validates config loading)
+            test_settings = get_settings()
+            return {"status": "ready"}
+        except Exception as e:
+            logger.warning(f"Readiness check failed: {e}")
+            return {"status": "not_ready", "error": str(e)}, 503
 
     return app
 
