@@ -8,12 +8,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python deps
-COPY backend/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy app code
-COPY backend/app ./app
-COPY backend/migrations ./migrations
+COPY app ./app
+COPY migrations ./migrations
 
 # Create sandbox directory
 RUN mkdir -p /tmp/agent-sandbox
