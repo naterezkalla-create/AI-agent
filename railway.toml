@@ -10,6 +10,7 @@ healthcheckInterval = 10
 healthcheckRetries = 15
 
 [env]
+PORT = "8000"
 PYTHONUNBUFFERED = "1"
 DEBUG = "false"
 APP_NAME = "AI Agent"
