@@ -3,13 +3,24 @@ from pydantic_settings import SettingsConfigDict
 from functools import lru_cache
 import os
 from dotenv import load_dotenv
+from pathlib import Path
 
-# Load .env file FIRST - use absolute paths to be safe
-_backend_dir = "/Users/nate/Desktop/ai-agent/backend"
-_env_file = os.path.join(_backend_dir, ".env")
+# Load .env file FIRST - support both local and Docker deployments
+# Try multiple locations: Docker /app/.env, local backend/.env, current directory
+_env_paths = [
+    Path("/app/.env"),  # Docker container
+    Path(__file__).parent.parent.parent / "backend" / ".env",  # Local dev
+    Path(".env"),  # Current directory
+]
+
+_env_file = None
+for path in _env_paths:
+    if path.exists():
+        _env_file = path
+        break
 
 # Load .env into os.environ BEFORE creating Settings  
-if os.path.exists(_env_file):
+if _env_file:
     load_dotenv(_env_file, override=True)
 
 
