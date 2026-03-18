@@ -107,10 +107,13 @@ async def lifespan(app: FastAPI):
 
     # Start scheduler
     if settings.scheduler_enabled:
-        from app.automations.scheduler import start_scheduler, load_automations, stop_scheduler
-        start_scheduler()
-        await load_automations()
-        logger.info("Scheduler started and automations loaded")
+        try:
+            from app.automations.scheduler import start_scheduler, load_automations, stop_scheduler
+            start_scheduler()
+            await load_automations()
+            logger.info("Scheduler started and automations loaded")
+        except Exception as e:
+            logger.warning(f"Failed to start scheduler: {e}")
 
     # Setup Telegram webhook (or polling for local dev)
     if settings.telegram_bot_token:
