@@ -1,0 +1,76 @@
+from pydantic_settings import BaseSettings
+from pydantic_settings import SettingsConfigDict
+from functools import lru_cache
+import os
+from dotenv import load_dotenv
+
+# Load .env file FIRST - use absolute paths to be safe
+_backend_dir = "/Users/nate/Desktop/ai-agent/backend"
+_env_file = os.path.join(_backend_dir, ".env")
+
+# Load .env into os.environ BEFORE creating Settings  
+if os.path.exists(_env_file):
+    load_dotenv(_env_file, override=True)
+
+
+class Settings(BaseSettings):
+    # App
+    app_name: str = "AI Agent"
+    debug: bool = False
+    api_key: str = ""
+
+    # Anthropic
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-sonnet-4-20250514"
+    max_tokens: int = 4096
+
+    # Supabase
+    supabase_url: str = ""
+    supabase_key: str = ""
+
+    # Telegram
+    telegram_bot_token: str = ""
+    telegram_webhook_url: str = ""
+
+    # Search
+    tavily_api_key: str = ""
+
+    # Google OAuth
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_redirect_uri: str = "http://localhost:8000/integrations/google/callback"
+
+    # Encryption
+    encryption_key: str = ""
+
+    # JWT Authentication
+    jwt_secret: str = "your-secret-key-change-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_expiration_hours: int = 168  # 7 days
+
+    # Email Service
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    from_email: str = ""
+    from_name: str = "AI Agent"
+    frontend_url: str = "http://localhost:5173"
+
+    # Sandbox
+    sandbox_dir: str = "/tmp/agent-sandbox"
+
+    # Scheduler
+    scheduler_enabled: bool = True
+
+    model_config = SettingsConfigDict(
+        env_file=_env_file,  # Use absolute path
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

@@ -1,0 +1,39 @@
+# Core
+fastapi==0.115.*
+uvicorn[standard]==0.34.*
+pydantic==2.*
+pydantic-settings==2.*
+python-dotenv==1.*
+
+# LLM
+anthropic==0.49.*
+
+# Database
+supabase==2.*
+
+# HTTP client
+httpx==0.28.*
+
+# Telegram
+python-telegram-bot==21.*
+
+# Scheduler
+apscheduler==3.*
+
+# Search
+tavily-python==0.5.*
+
+# Encryption
+cryptography==44.*
+
+# JWT
+pyjwt==2.8.*
+
+# Email Validation
+email-validator==2.*
+
+# Rate Limiting
+slowapi==0.1.*
+
+# Utilities
+python-multipart==0.0.*
