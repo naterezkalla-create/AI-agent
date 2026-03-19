@@ -55,7 +55,7 @@ export default function SettingsPage() {
   const loadSettings = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/settings?user_id=default');
+      const response = await fetch('/api/settings/?user_id=default');
       const data = await response.json();
       setLocalSettings(data);
     } catch (error) {
@@ -139,7 +139,7 @@ export default function SettingsPage() {
   const handleSaveSettings = async () => {
     try {
       setIsSaving(true);
-      const response = await fetch('/api/settings?user_id=default', {
+      const response = await fetch('/api/settings/?user_id=default', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
