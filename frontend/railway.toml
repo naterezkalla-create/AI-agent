@@ -9,3 +9,7 @@ healthcheckTimeout = 60
 healthcheckInterval = 10
 healthcheckRetries = 5
 restartPolicyMaxRetries = 5
+
+[deploy.environment]
+PORT = "3000"
+BACKEND_UPSTREAM = "http://backend:8000"
