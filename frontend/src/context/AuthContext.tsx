@@ -36,9 +36,14 @@ const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeoutM
       ...options,
       signal: controller.signal,
     });
-    return response;
-  } finally {
     clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`Request timeout after ${timeoutMs}ms`);
+    }
+    throw error;
   }
 };
 
