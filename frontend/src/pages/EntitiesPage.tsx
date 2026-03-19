@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
-import { getEntities, createEntity, deleteEntity } from '../lib/api';
-import { Plus, Trash2, Search } from 'lucide-react';
+import { getEntities, createEntity, updateEntity, deleteEntity } from '../lib/api';
+import { Plus, Trash2, Search, Edit } from 'lucide-react';
+import EntityForm from '../components/EntityForm';
+import { useToast } from '../components/ToastContainer';
 import type { Entity } from '../types';
 
 export default function EntitiesPage() {
   const [entities, setEntities] = useState<Entity[]>([]);
   const [filter, setFilter] = useState('');
-  const [showCreate, setShowCreate] = useState(false);
-  const [newType, setNewType] = useState('contact');
-  const [newData, setNewData] = useState('{\n  "name": "",\n  "email": ""\n}');
+  const [showForm, setShowForm] = useState(false);
+  const [editingEntity, setEditingEntity] = useState<Entity | undefined>();
+  const [isLoading, setIsLoading] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     loadEntities();
@@ -23,22 +26,43 @@ export default function EntitiesPage() {
     }
   };
 
-  const handleCreate = async () => {
+  const handleCreateOrUpdate = async (data: {
+    type: string;
+    data: Record<string, unknown>;
+  }) => {
+    setIsLoading(true);
     try {
-      const data = JSON.parse(newData);
-      await createEntity(newType, data);
-      setShowCreate(false);
-      setNewData('{\n  "name": "",\n  "email": ""\n}');
+      if (editingEntity) {
+        await updateEntity(editingEntity.id, data);
+        toast.toast('Entity updated successfully', 'success');
+      } else {
+        await createEntity(data.type, data.data);
+        toast.toast('Entity created successfully', 'success');
+      }
+      setShowForm(false);
+      setEditingEntity(undefined);
       loadEntities();
-    } catch (e) {
-      alert(`Error: ${e instanceof Error ? e.message : 'Invalid JSON'}`);
+    } catch (err) {
+      toast.toast(err instanceof Error ? err.message : 'Failed to save entity', 'error');
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const handleEdit = (entity: Entity) => {
+    setEditingEntity(entity);
+    setShowForm(true);
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this entity?')) return;
-    await deleteEntity(id);
-    loadEntities();
+    try {
+      await deleteEntity(id);
+      toast.toast('Entity deleted', 'success');
+      loadEntities();
+    } catch (err) {
+      toast.toast('Failed to delete entity', 'error');
+    }
   };
 
   const filtered = filter
@@ -54,7 +78,10 @@ export default function EntitiesPage() {
       <div className="border-b border-gray-800 px-6 py-3 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Entities / CRM</h2>
         <button
-          onClick={() => setShowCreate(true)}
+          onClick={() => {
+            setEditingEntity(undefined);
+            setShowForm(true);
+          }}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 px-3 text-sm transition-colors"
         >
           <Plus size={16} /> New Entity
@@ -87,12 +114,22 @@ export default function EntitiesPage() {
                 <span className="text-xs font-mono bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded">
                   {entity.type}
                 </span>
-                <button
-                  onClick={() => handleDelete(entity.id)}
-                  className="text-gray-500 hover:text-red-400 transition-colors"
-                >
-                  <Trash2 size={14} />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleEdit(entity)}
+                    className="p-1 text-gray-500 hover:text-blue-400 transition-colors"
+                    title="Edit"
+                  >
+                    <Edit size={14} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(entity.id)}
+                    className="p-1 text-gray-500 hover:text-red-400 transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
               <pre className="text-sm text-gray-300 whitespace-pre-wrap">
                 {JSON.stringify(entity.data, null, 2)}
@@ -109,52 +146,16 @@ export default function EntitiesPage() {
         </div>
       </div>
 
-      {/* Create modal */}
-      {showCreate && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Create Entity</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="text-sm text-gray-400 block mb-1">Type</label>
-                <select
-                  value={newType}
-                  onChange={(e) => setNewType(e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="contact">Contact</option>
-                  <option value="deal">Deal</option>
-                  <option value="note">Note</option>
-                  <option value="call_log">Call Log</option>
-                  <option value="custom">Custom</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-sm text-gray-400 block mb-1">Data (JSON)</label>
-                <textarea
-                  value={newData}
-                  onChange={(e) => setNewData(e.target.value)}
-                  rows={6}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="flex gap-2 justify-end">
-                <button
-                  onClick={() => setShowCreate(false)}
-                  className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreate}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
-                >
-                  Create
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {showForm && (
+        <EntityForm
+          initialData={editingEntity}
+          onSubmit={handleCreateOrUpdate}
+          onCancel={() => {
+            setShowForm(false);
+            setEditingEntity(undefined);
+          }}
+          isLoading={isLoading}
+        />
       )}
     </div>
   );

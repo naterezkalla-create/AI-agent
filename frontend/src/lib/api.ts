@@ -100,6 +100,9 @@ export const getEntities = (type?: string) =>
 export const createEntity = (type: string, data: Record<string, unknown>) =>
   request<unknown>('/entities', { method: 'POST', body: JSON.stringify({ type, data }) });
 
+export const updateEntity = (id: string, updates: Record<string, unknown>) =>
+  request<unknown>(`/entities/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+
 export const deleteEntity = (id: string) =>
   request<{ deleted: boolean }>(`/entities/${id}`, { method: 'DELETE' });
 

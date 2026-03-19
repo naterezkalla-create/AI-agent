@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import { getAutomations, createAutomation, updateAutomation, deleteAutomation } from '../lib/api';
-import { Plus, Trash2, Play, Pause } from 'lucide-react';
+import { Plus, Trash2, Play, Pause, Edit } from 'lucide-react';
+import AutomationForm from '../components/AutomationForm';
+import { useToast } from '../components/ToastContainer';
 import type { Automation } from '../types';
 
 export default function AutomationsPage() {
   const [automations, setAutomations] = useState<Automation[]>([]);
-  const [showCreate, setShowCreate] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newCron, setNewCron] = useState('0 9 * * *');
-  const [newPrompt, setNewPrompt] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [editingAuto, setEditingAuto] = useState<Automation | undefined>();
+  const [isLoading, setIsLoading] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     loadAutomations();
@@ -23,24 +25,54 @@ export default function AutomationsPage() {
     }
   };
 
-  const handleCreate = async () => {
-    if (!newName || !newPrompt) return;
-    await createAutomation(newName, newCron, newPrompt);
-    setShowCreate(false);
-    setNewName('');
-    setNewPrompt('');
-    loadAutomations();
+  const handleCreateOrUpdate = async (data: {
+    name: string;
+    cron_expression: string;
+    prompt: string;
+  }) => {
+    setIsLoading(true);
+    try {
+      if (editingAuto) {
+        await updateAutomation(editingAuto.id, data);
+        toast.toast('Automation updated successfully', 'success');
+      } else {
+        await createAutomation(data.name, data.cron_expression, data.prompt);
+        toast.toast('Automation created successfully', 'success');
+      }
+      setShowForm(false);
+      setEditingAuto(undefined);
+      loadAutomations();
+    } catch (err) {
+      toast.toast(err instanceof Error ? err.message : 'Failed to save automation', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleToggle = async (auto: Automation) => {
-    await updateAutomation(auto.id, { enabled: !auto.enabled });
-    loadAutomations();
+    try {
+      await updateAutomation(auto.id, { enabled: !auto.enabled });
+      toast.toast(auto.enabled ? 'Automation paused' : 'Automation enabled', 'info');
+      loadAutomations();
+    } catch (err) {
+      toast.toast('Failed to toggle automation', 'error');
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this automation?')) return;
-    await deleteAutomation(id);
-    loadAutomations();
+    try {
+      await deleteAutomation(id);
+      toast.toast('Automation deleted', 'success');
+      loadAutomations();
+    } catch (err) {
+      toast.toast('Failed to delete automation', 'error');
+    }
+  };
+
+  const handleEdit = (auto: Automation) => {
+    setEditingAuto(auto);
+    setShowForm(true);
   };
 
   return (
@@ -48,7 +80,10 @@ export default function AutomationsPage() {
       <div className="border-b border-gray-800 px-6 py-3 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Automations</h2>
         <button
-          onClick={() => setShowCreate(true)}
+          onClick={() => {
+            setEditingAuto(undefined);
+            setShowForm(true);
+          }}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 px-3 text-sm transition-colors"
         >
           <Plus size={16} /> New Automation
@@ -60,20 +95,20 @@ export default function AutomationsPage() {
           {automations.map((auto) => (
             <div
               key={auto.id}
-              className="bg-gray-900 border border-gray-800 rounded-lg p-4"
+              className="bg-gray-900 border border-gray-800 rounded-lg p-4 hover:border-gray-700 transition-colors"
             >
               <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="font-medium">{auto.name}</h3>
+                <div className="flex-1">
+                  <h3 className="font-medium text-white">{auto.name}</h3>
                   <p className="text-sm text-gray-400 font-mono mt-1">{auto.cron_expression}</p>
-                  <p className="text-sm text-gray-500 mt-2">{auto.prompt}</p>
+                  <p className="text-sm text-gray-500 mt-2 line-clamp-2">{auto.prompt}</p>
                   {auto.last_run && (
                     <p className="text-xs text-gray-600 mt-2">
                       Last run: {new Date(auto.last_run).toLocaleString()}
                     </p>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 ml-4">
                   <button
                     onClick={() => handleToggle(auto)}
                     className={`p-2 rounded-lg transition-colors ${
@@ -81,12 +116,21 @@ export default function AutomationsPage() {
                         ? 'bg-green-600/20 text-green-400 hover:bg-green-600/30'
                         : 'bg-gray-800 text-gray-500 hover:bg-gray-700'
                     }`}
+                    title={auto.enabled ? 'Pause' : 'Enable'}
                   >
                     {auto.enabled ? <Pause size={16} /> : <Play size={16} />}
                   </button>
                   <button
+                    onClick={() => handleEdit(auto)}
+                    className="p-2 text-gray-500 hover:text-blue-400 transition-colors"
+                    title="Edit"
+                  >
+                    <Edit size={16} />
+                  </button>
+                  <button
                     onClick={() => handleDelete(auto.id)}
                     className="p-2 text-gray-500 hover:text-red-400 transition-colors"
+                    title="Delete"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -105,60 +149,16 @@ export default function AutomationsPage() {
         </div>
       </div>
 
-      {/* Create modal */}
-      {showCreate && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">New Automation</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="text-sm text-gray-400 block mb-1">Name</label>
-                <input
-                  type="text"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="e.g., Morning briefing"
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-400 block mb-1">CRON Expression</label>
-                <input
-                  type="text"
-                  value={newCron}
-                  onChange={(e) => setNewCron(e.target.value)}
-                  placeholder="0 9 * * *"
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="text-xs text-gray-600 mt-1">minute hour day month weekday</p>
-              </div>
-              <div>
-                <label className="text-sm text-gray-400 block mb-1">Prompt</label>
-                <textarea
-                  value={newPrompt}
-                  onChange={(e) => setNewPrompt(e.target.value)}
-                  placeholder="What should the agent do when this fires?"
-                  rows={4}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="flex gap-2 justify-end">
-                <button
-                  onClick={() => setShowCreate(false)}
-                  className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreate}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
-                >
-                  Create
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {showForm && (
+        <AutomationForm
+          initialData={editingAuto}
+          onSubmit={handleCreateOrUpdate}
+          onCancel={() => {
+            setShowForm(false);
+            setEditingAuto(undefined);
+          }}
+          isLoading={isLoading}
+        />
       )}
     </div>
   );

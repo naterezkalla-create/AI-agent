@@ -1,14 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import ChatMessage from '../components/ChatMessage';
 import ChatInput from '../components/ChatInput';
-import type { Message } from '../types';
+import ConversationList from '../components/ConversationList';
+import ConversationExport from '../components/ConversationExport';
+import TypingIndicator from '../components/TypingIndicator';
+import ErrorBoundary from '../components/ErrorBoundary';
+import type { Message, Conversation } from '../types';
 import { streamMessage, getConversations, deleteConversation } from '../lib/api';
-import { Plus, Trash2 } from 'lucide-react';
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversationId, setConversationId] = useState<string | undefined>();
-  const [conversations, setConversations] = useState<{ id: string; title: string; updated_at: string }[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -23,8 +26,13 @@ export default function ChatPage() {
 
   const loadConversations = async () => {
     try {
-      const convs = await getConversations();
-      setConversations(convs);
+      const convs = await getConversations() as { id: string; title: string; updated_at: string }[];
+      // Add created_at field (using updated_at as fallback since API doesn't return it)
+      const conversationsWithCreatedAt = convs.map(c => ({
+        ...c,
+        created_at: c.updated_at
+      }));
+      setConversations(conversationsWithCreatedAt);
     } catch {
       // API may not be available yet
     }
@@ -123,43 +131,23 @@ export default function ChatPage() {
     }
   };
 
+  const handleSelectConversation = (id: string) => {
+    setConversationId(id);
+    // Load conversation messages (API endpoint would need to be created)
+    setMessages([]);
+  };
+
   return (
     <div className="flex h-full">
-      {/* Conversation list */}
-      <div className="w-64 bg-gray-900/50 border-r border-gray-800 hidden md:flex flex-col">
-        <div className="p-3 border-b border-gray-800">
-          <button
-            onClick={handleNewChat}
-            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 px-3 text-sm transition-colors"
-          >
-            <Plus size={16} />
-            New Chat
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {conversations.map((conv) => (
-            <div
-              key={conv.id}
-              className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-sm ${
-                conversationId === conv.id
-                  ? 'bg-gray-800 text-white'
-                  : 'text-gray-400 hover:bg-gray-800/50 hover:text-white'
-              }`}
-              onClick={() => setConversationId(conv.id)}
-            >
-              <span className="flex-1 truncate">{conv.title}</span>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteConversation(conv.id);
-                }}
-                className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-opacity"
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          ))}
-        </div>
+      {/* Conversation list - hidden on mobile */}
+      <div className="w-64 hidden md:flex bg-gray-950">
+        <ConversationList
+          conversations={conversations}
+          selectedId={conversationId}
+          onSelect={handleSelectConversation}
+          onDelete={handleDeleteConversation}
+          onNew={handleNewChat}
+        />
       </div>
 
       {/* Chat area */}
@@ -167,11 +155,14 @@ export default function ChatPage() {
         {/* Header */}
         <div className="border-b border-gray-800 px-6 py-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Chat</h2>
+          {conversationId && messages.length > 0 && (
+            <ConversationExport messages={messages} conversationId={conversationId} />
+          )}
         </div>
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-4xl mx-auto space-y-4">
             {messages.length === 0 && !isLoading && (
               <div className="text-center text-gray-600 mt-32">
                 <p className="text-4xl mb-4">🤖</p>
@@ -181,18 +172,16 @@ export default function ChatPage() {
             )}
 
             {messages.map((msg, i) => (
-              <ChatMessage key={i} message={msg} />
+              <ErrorBoundary key={i}>
+                <ChatMessage message={msg} />
+              </ErrorBoundary>
             ))}
 
-            {/* Loading indicator */}
+            {/* Typing indicator */}
             {isLoading && (
-              <div className="flex justify-start mb-4">
-                <div className="bg-gray-800 text-gray-100 rounded-2xl px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                  </div>
+              <div className="flex justify-start">
+                <div className="bg-gray-800 rounded-2xl px-4 py-3">
+                  <TypingIndicator />
                 </div>
               </div>
             )}

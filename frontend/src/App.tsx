@@ -3,6 +3,9 @@ import { useAuth } from './hooks/useAuth';
 import { Loader } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import ProtectedRoute from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
+import { ThemeProvider } from './components/ThemeProvider';
+import { ToastProvider } from './components/ToastContainer';
 import DashboardPage from './pages/DashboardPage';
 import ChatPage from './pages/ChatPage';
 import EntitiesPage from './pages/EntitiesPage';
@@ -31,45 +34,51 @@ export default function App() {
   }
 
   return (
-    <Routes>
-      {/* Error Pages */}
-      <Route path="/error" element={<ServerError />} />
+    <ErrorBoundary>
+      <ThemeProvider>
+        <ToastProvider>
+          <Routes>
+            {/* Error Pages */}
+            <Route path="/error" element={<ServerError />} />
 
-      {/* Auth Routes */}
-      <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />} />
-      <Route path="/signup" element={isAuthenticated ? <Navigate to="/" replace /> : <SignupPage />} />
-      <Route path="/forgot-password" element={isAuthenticated ? <Navigate to="/" replace /> : <ForgotPasswordPage />} />
-      <Route path="/reset-password" element={isAuthenticated ? <Navigate to="/" replace /> : <ResetPasswordPage />} />
-      <Route path="/verify-email" element={<VerifyEmailPage />} />
+            {/* Auth Routes */}
+            <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />} />
+            <Route path="/signup" element={isAuthenticated ? <Navigate to="/" replace /> : <SignupPage />} />
+            <Route path="/forgot-password" element={isAuthenticated ? <Navigate to="/" replace /> : <ForgotPasswordPage />} />
+            <Route path="/reset-password" element={isAuthenticated ? <Navigate to="/" replace /> : <ResetPasswordPage />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
 
-      {/* Protected Routes with Sidebar */}
-      <Route
-        path="/*"
-        element={
-          <ProtectedRoute>
-            <div className="flex h-screen bg-gray-950">
-              <Sidebar />
-              <main className="flex-1 overflow-hidden">
-                <Routes>
-                  <Route path="/" element={<DashboardPage />} />
-                  <Route path="/chat" element={<ChatPage />} />
-                  <Route path="/chat/:conversationId?" element={<ChatPage />} />
-                  <Route path="/entities" element={<EntitiesPage />} />
-                  <Route path="/automations" element={<AutomationsPage />} />
-                  <Route path="/integrations" element={<IntegrationsPage />} />
-                  <Route path="/memory" element={<MemoryPage />} />
-                  <Route path="/settings" element={<SettingsPage />} />
-                  <Route path="/profile" element={<ProfilePage />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </main>
-            </div>
-          </ProtectedRoute>
-        }
-      />
+            {/* Protected Routes with Sidebar */}
+            <Route
+              path="/*"
+              element={
+                <ProtectedRoute>
+                  <div className="flex h-screen bg-gray-950">
+                    <Sidebar />
+                    <main className="flex-1 overflow-hidden">
+                      <Routes>
+                        <Route path="/" element={<DashboardPage />} />
+                        <Route path="/chat" element={<ChatPage />} />
+                        <Route path="/chat/:conversationId?" element={<ChatPage />} />
+                        <Route path="/entities" element={<EntitiesPage />} />
+                        <Route path="/automations" element={<AutomationsPage />} />
+                        <Route path="/integrations" element={<IntegrationsPage />} />
+                        <Route path="/memory" element={<MemoryPage />} />
+                        <Route path="/settings" element={<SettingsPage />} />
+                        <Route path="/profile" element={<ProfilePage />} />
+                        <Route path="*" element={<NotFound />} />
+                      </Routes>
+                    </main>
+                  </div>
+                </ProtectedRoute>
+              }
+            />
 
-      {/* 404 Fallback */}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+            {/* 404 Fallback */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </ToastProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }

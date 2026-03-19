@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, MessageSquare, Users, Clock, Plug, Brain, Settings, User, LogOut } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import ThemeToggle from './ThemeToggle';
 import { useState } from 'react';
 
 const navItems = [
@@ -59,7 +60,10 @@ export default function Sidebar() {
       </nav>
 
       {/* User Profile Section */}
-      <div className="p-4 border-t border-gray-800">
+      <div className="p-4 border-t border-gray-800 space-y-3">
+        {/* Theme Toggle */}
+        <ThemeToggle />
+
         <div className="relative">
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
