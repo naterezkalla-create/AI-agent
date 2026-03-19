@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy app code
 COPY app ./app
 COPY migrations ./migrations
+COPY prompts ./prompts
 
 # Create sandbox directory
 RUN mkdir -p /tmp/agent-sandbox

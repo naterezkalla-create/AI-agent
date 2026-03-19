@@ -1,4 +1,6 @@
 from pathlib import Path
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from app.memory.long_term import get_memory_notes
 from app.config import get_settings
 from app.memory.supabase_client import get_supabase
@@ -68,8 +70,20 @@ async def build_system_prompt(user_id: str = "default") -> str:
     # Load user context from templates
     user_context = _read_template("user.md")
 
+    melbourne_now = datetime.now(ZoneInfo("Australia/Melbourne"))
+    current_context = "\n".join(
+        [
+            "## Current Date/Time",
+            f"- Current date in Melbourne: {melbourne_now.strftime('%Y-%m-%d')}",
+            f"- Current time in Melbourne: {melbourne_now.strftime('%H:%M:%S %Z')}",
+            f"- Current month in Melbourne: {melbourne_now.strftime('%B %Y')}",
+            "- When the user refers to relative dates like today, tomorrow, next week, or this month, resolve them from this Melbourne date.",
+        ]
+    )
+
     sections = [
         base_prompt,
+        current_context,
         user_context,
         memory_section,
     ]
