@@ -44,7 +44,7 @@ export default function App() {
 
       {/* Protected Routes with Sidebar */}
       <Route
-        path="/"
+        path="/*"
         element={
           <ProtectedRoute>
             <div className="flex h-screen bg-gray-950">
