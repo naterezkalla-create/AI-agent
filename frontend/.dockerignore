@@ -19,4 +19,3 @@ out/
 .cache
 .dockerignore
 Dockerfile
-nginx.conf
