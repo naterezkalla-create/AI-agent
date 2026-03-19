@@ -56,16 +56,10 @@ export default function SettingsPage() {
     try {
       setLoading(true);
       const response = await fetch('/api/settings?user_id=default');
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-        throw new Error(errorData.detail || `Server error: ${response.status}`);
-      }
       const data = await response.json();
       setLocalSettings(data);
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error('Failed to load settings:', errorMsg);
-      alert(`Failed to load settings: ${errorMsg}`);
+      console.error('Failed to load settings:', error);
     } finally {
       setLoading(false);
     }
@@ -75,15 +69,10 @@ export default function SettingsPage() {
     try {
       setLoadingKeys(true);
       const response = await fetch('/api/settings/keys?user_id=default');
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-        throw new Error(errorData.detail || `Server error: ${response.status}`);
-      }
       const data = await response.json();
       setApiKeys(data.keys || {});
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error('Failed to load API keys:', errorMsg);
+      console.error('Failed to load API keys:', error);
     } finally {
       setLoadingKeys(false);
     }
@@ -165,16 +154,9 @@ export default function SettingsPage() {
         setLocalSettings(updated);
         setSavedMessage('Settings saved successfully!');
         setTimeout(() => setSavedMessage(''), 3000);
-      } else {
-        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-        const errorMessage = errorData.detail || `Server error: ${response.status}`;
-        console.error('Failed to save settings:', response.status, errorMessage);
-        alert(`Failed to save settings: ${errorMessage}`);
       }
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error('Failed to save settings:', errorMsg);
-      alert(`Network error: ${errorMsg}`);
+      console.error('Failed to save settings:', error);
     } finally {
       setIsSaving(false);
     }
@@ -202,16 +184,9 @@ export default function SettingsPage() {
         setLocalSettings(reset);
         setSavedMessage('Settings reset to defaults');
         setTimeout(() => setSavedMessage(''), 3000);
-      } else {
-        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-        const errorMessage = errorData.detail || `Server error: ${response.status}`;
-        console.error('Failed to reset settings:', response.status, errorMessage);
-        alert(`Failed to reset settings: ${errorMessage}`);
       }
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error('Failed to reset settings:', errorMsg);
-      alert(`Network error: ${errorMsg}`);
+      console.error('Failed to reset settings:', error);
     }
   };
 
