@@ -163,18 +163,9 @@ def create_app() -> FastAPI:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
-    # CORS - Restrict to specific origins
-    allowed_origins = [
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://localhost:8000",
-    ]
-    if not settings.debug:
-        # Add production domains here
-        allowed_origins.extend([
-            # "https://yourdomain.com",
-        ])
-
+    # CORS - Read from settings
+    allowed_origins = [origin.strip() for origin in settings.cors_allowed_origins.split(",")]
+    
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,

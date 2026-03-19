@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     from_name: str = "AI Agent"
     frontend_url: str = "http://localhost:5173"
 
+    # CORS
+    cors_allowed_origins: str = "http://localhost:5173,http://localhost:3000,http://localhost:8000"
+
     # Sandbox
     sandbox_dir: str = "/tmp/agent-sandbox"
 
