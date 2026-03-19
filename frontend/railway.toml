@@ -3,4 +3,9 @@ builder = "dockerfile"
 dockerfilePath = "frontend/Dockerfile"
 
 [deploy]
+port = 3000
+healthcheckPath = "/"
+healthcheckTimeout = 60
+healthcheckInterval = 10
+healthcheckRetries = 5
 restartPolicyMaxRetries = 5
