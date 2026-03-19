@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from app.memory.supabase_client import get_supabase
 from app.core.encryption import encrypt_api_key, decrypt_api_key
@@ -42,7 +42,7 @@ class APIKeysListResponse(BaseModel):
 
 
 @router.get("/", response_model=SettingsResponse)
-async def get_settings(user_id: str = "default"):
+async def get_settings(user_id: str = Query("default")):
     """Get user settings"""
     try:
         sb = get_supabase()
@@ -83,7 +83,7 @@ async def create_default_settings(user_id: str, sb=None):
 
 
 @router.put("/", response_model=SettingsResponse)
-async def update_settings(settings: UserSettings, user_id: str = "default"):
+async def update_settings(settings: UserSettings, user_id: str = Query("default")):
     """Update user settings"""
     try:
         sb = get_supabase()
@@ -111,15 +111,17 @@ async def update_settings(settings: UserSettings, user_id: str = "default"):
         if not result.data:
             raise HTTPException(status_code=404, detail="Settings not found")
         
+        logger.info(f"Settings updated for user: {user_id}")
         return result.data[0]
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Failed to update settings: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/reset", response_model=SettingsResponse)
-async def reset_settings(user_id: str = "default"):
+async def reset_settings(user_id: str = Query("default")):
     """Reset settings to defaults"""
     try:
         sb = get_supabase()
@@ -134,7 +136,7 @@ async def reset_settings(user_id: str = "default"):
 
 
 @router.post("/integrations/{integration}/toggle")
-async def toggle_integration(integration: str, enabled: bool, user_id: str = "default"):
+async def toggle_integration(integration: str, enabled: bool = Query(...), user_id: str = Query("default")):
     """Enable/disable a specific integration"""
     try:
         sb = get_supabase()
@@ -165,7 +167,7 @@ async def toggle_integration(integration: str, enabled: bool, user_id: str = "de
 # API Key Management Endpoints
 
 @router.get("/keys", response_model=APIKeysListResponse)
-async def list_api_keys(user_id: str = "default"):
+async def list_api_keys(user_id: str = Query("default")):
     """List which services have API keys configured (never return actual keys)"""
     try:
         sb = get_supabase()
@@ -187,7 +189,7 @@ async def list_api_keys(user_id: str = "default"):
 
 
 @router.post("/keys/{service}", response_model=APIKeyResponse)
-async def store_api_key(service: str, request: APIKeyRequest, user_id: str = "default"):
+async def store_api_key(service: str, request: APIKeyRequest, user_id: str = Query("default")):
     """Store an encrypted API key for a service"""
     try:
         # Validate service name - support many services
@@ -251,7 +253,7 @@ async def store_api_key(service: str, request: APIKeyRequest, user_id: str = "de
 
 
 @router.delete("/keys/{service}")
-async def delete_api_key(service: str, user_id: str = "default"):
+async def delete_api_key(service: str, user_id: str = Query("default")):
     """Delete an API key for a service"""
     try:
         sb = get_supabase()
