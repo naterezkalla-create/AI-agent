@@ -111,8 +111,10 @@ async def login(request: Request, credentials: UserLogin):
     """Login with email and password (10 per minute rate limit)."""
     supabase = get_supabase()
     
-    # Find user
-    result = supabase.table("users").select("*").eq("email", credentials.email).execute()
+    # Find user - select only needed fields for faster query
+    result = supabase.table("users").select(
+        "id, email, password_hash, full_name, avatar_url, created_at, email_verified"
+    ).eq("email", credentials.email).execute()
     
     if not result.data:
         raise HTTPException(
@@ -129,14 +131,11 @@ async def login(request: Request, credentials: UserLogin):
             detail="Invalid email or password"
         )
     
-    # Update last_login
-    supabase.table("users").update({
-        "last_login": datetime.utcnow().isoformat(),
-        "updated_at": datetime.utcnow().isoformat(),
-    }).eq("id", user["id"]).execute()
-    
     # Generate token
     token = create_access_token(user["id"])
+    
+    # Note: Removed last_login update to reduce database calls
+    # This can be tracked asynchronously if needed
     
     return TokenResponse(
         access_token=token,
@@ -156,7 +155,10 @@ async def get_profile(user_id: str = Depends(get_current_user)):
     """Get current user profile."""
     supabase = get_supabase()
     
-    result = supabase.table("users").select("*").eq("id", user_id).execute()
+    # Select only needed fields for faster query
+    result = supabase.table("users").select(
+        "id, email, full_name, avatar_url, created_at, email_verified"
+    ).eq("id", user_id).execute()
     
     if not result.data:
         raise HTTPException(

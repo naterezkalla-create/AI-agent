@@ -26,6 +26,22 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Helper function to make requests with timeout
+const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeoutMs = 10000) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -34,21 +50,63 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Load token and user on mount
   useEffect(() => {
     const storedToken = localStorage.getItem("auth_token");
+    const cachedUser = localStorage.getItem("auth_user");
+
     if (storedToken) {
       setToken(storedToken);
-      fetchUser(storedToken);
+      
+      // Use cached user if available to speed up initial load
+      if (cachedUser) {
+        try {
+          setUser(JSON.parse(cachedUser));
+          setIsLoading(false);
+          // Verify token validity in background (don't block UI)
+          verifyTokenAsync(storedToken);
+        } catch {
+          // Invalid cache, fetch fresh
+          fetchUser(storedToken);
+        }
+      } else {
+        // No cache, fetch user
+        fetchUser(storedToken);
+      }
     } else {
       setIsLoading(false);
     }
   }, []);
 
-  const fetchUser = async (authToken: string) => {
+  // Verify token asynchronously in background
+  const verifyTokenAsync = async (authToken: string) => {
     try {
-      const response = await fetch("/api/auth/me", {
+      const response = await fetchWithTimeout("/api/auth/me", {
         headers: {
           Authorization: `Bearer ${authToken}`,
         },
-      });
+      }, 5000);
+
+      if (!response.ok) {
+        throw new Error("Token invalid");
+      }
+
+      const userData = await response.json();
+      setUser(userData);
+      localStorage.setItem("auth_user", JSON.stringify(userData));
+    } catch (error) {
+      console.error("Token verification failed:", error);
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
+      setToken(null);
+      setUser(null);
+    }
+  };
+
+  const fetchUser = async (authToken: string) => {
+    try {
+      const response = await fetchWithTimeout("/api/auth/me", {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+      }, 5000);
 
       if (!response.ok) {
         throw new Error("Failed to fetch user");
@@ -56,10 +114,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const userData = await response.json();
       setUser(userData);
+      localStorage.setItem("auth_user", JSON.stringify(userData));
     } catch (error) {
       console.error("Error fetching user:", error);
       localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
       setToken(null);
+      setUser(null);
     } finally {
       setIsLoading(false);
     }
@@ -67,13 +128,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await fetchWithTimeout("/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ email, password }),
-      });
+      }, 15000); // Longer timeout for password verification
 
       if (!response.ok) {
         const error = await response.json();
@@ -81,9 +142,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       const data = await response.json();
+      
+      // Store token and user immediately (no second fetch needed)
       setToken(data.access_token);
       setUser(data.user);
       localStorage.setItem("auth_token", data.access_token);
+      localStorage.setItem("auth_user", JSON.stringify(data.user));
     } catch (error) {
       throw error;
     }
@@ -91,13 +155,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const register = async (email: string, password: string, full_name?: string) => {
     try {
-      const response = await fetch("/api/auth/register", {
+      const response = await fetchWithTimeout("/api/auth/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ email, password, full_name }),
-      });
+      }, 15000);
 
       if (!response.ok) {
         const error = await response.json();
@@ -105,9 +169,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       const data = await response.json();
+      
+      // Store token and user immediately
       setToken(data.access_token);
       setUser(data.user);
       localStorage.setItem("auth_token", data.access_token);
+      localStorage.setItem("auth_user", JSON.stringify(data.user));
     } catch (error) {
       throw error;
     }
@@ -117,6 +184,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(null);
     setToken(null);
     localStorage.removeItem("auth_token");
+    localStorage.removeItem("auth_user");
   };
 
   const updateProfile = async (profileData: Partial<User>) => {
@@ -125,14 +193,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     try {
-      const response = await fetch("/api/auth/me", {
+      const response = await fetchWithTimeout("/api/auth/me", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(profileData),
-      });
+      }, 10000);
 
       if (!response.ok) {
         const error = await response.json();
@@ -141,6 +209,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const updatedUser = await response.json();
       setUser(updatedUser);
+      localStorage.setItem("auth_user", JSON.stringify(updatedUser));
     } catch (error) {
       throw error;
     }

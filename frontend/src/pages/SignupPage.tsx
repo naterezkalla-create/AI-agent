@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Loader } from "lucide-react";
 
 export const SignupPage: React.FC = () => {
   const navigate = useNavigate();
@@ -12,11 +12,13 @@ export const SignupPage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingStage, setLoadingStage] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setIsLoading(true);
+    setLoadingStage("Validating...");
 
     try {
       if (!email || !password || !confirmPassword) {
@@ -31,12 +33,16 @@ export const SignupPage: React.FC = () => {
         throw new Error("Passwords do not match");
       }
 
+      setLoadingStage("Creating account...");
       await register(email, password, fullName);
-      navigate("/");
+      setLoadingStage("Redirecting...");
+      
+      // Small delay to ensure state is set before navigation
+      setTimeout(() => navigate("/"), 300);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
-    } finally {
       setIsLoading(false);
+      setLoadingStage("");
     }
   };
 
@@ -64,7 +70,8 @@ export const SignupPage: React.FC = () => {
                 type="text"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="w-full px-4 py-2 bg-slate-700 border border-purple-500/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition"
+                disabled={isLoading}
+                className="w-full px-4 py-2 bg-slate-700 border border-purple-500/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition disabled:opacity-50"
                 placeholder="John Doe"
               />
             </div>
@@ -78,7 +85,8 @@ export const SignupPage: React.FC = () => {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2 bg-slate-700 border border-purple-500/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition"
+                disabled={isLoading}
+                className="w-full px-4 py-2 bg-slate-700 border border-purple-500/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition disabled:opacity-50"
                 placeholder="you@example.com"
                 required
               />
@@ -93,7 +101,8 @@ export const SignupPage: React.FC = () => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 bg-slate-700 border border-purple-500/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition"
+                disabled={isLoading}
+                className="w-full px-4 py-2 bg-slate-700 border border-purple-500/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition disabled:opacity-50"
                 placeholder="••••••••"
                 required
               />
@@ -108,7 +117,8 @@ export const SignupPage: React.FC = () => {
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-4 py-2 bg-slate-700 border border-purple-500/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition"
+                disabled={isLoading}
+                className="w-full px-4 py-2 bg-slate-700 border border-purple-500/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition disabled:opacity-50"
                 placeholder="••••••••"
                 required
               />
@@ -117,9 +127,16 @@ export const SignupPage: React.FC = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-2 px-4 bg-gradient-to-r from-purple-600 to-purple-500 text-white rounded-lg font-medium hover:from-purple-700 hover:to-purple-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-2 px-4 bg-gradient-to-r from-purple-600 to-purple-500 text-white rounded-lg font-medium hover:from-purple-700 hover:to-purple-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {isLoading ? "Creating Account..." : "Sign Up"}
+              {isLoading ? (
+                <>
+                  <Loader size={18} className="animate-spin" />
+                  <span>{loadingStage || "Creating account..."}</span>
+                </>
+              ) : (
+                "Sign Up"
+              )}
             </button>
           </form>
 
