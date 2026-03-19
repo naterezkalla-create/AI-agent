@@ -241,7 +241,12 @@ async def run_stream(
                     "input": tool_use.input,
                     "result": tool_result_content[:1000],
                 })
-                yield {"type": "tool_call_end", "name": tool_use.name, "result": tool_result_content[:500]}
+                yield {
+                    "type": "tool_call_end",
+                    "name": tool_use.name,
+                    "input": tool_use.input,
+                    "result": tool_result_content[:500],
+                }
 
             messages.append({"role": "user", "content": tool_results})
 

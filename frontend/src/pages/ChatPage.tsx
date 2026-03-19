@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import ChatMessage from '../components/ChatMessage';
 import ChatInput from '../components/ChatInput';
-import type { Message, ToolCall } from '../types';
-import { sendMessage as apiSendMessage, getConversations, deleteConversation } from '../lib/api';
+import type { Message } from '../types';
+import { streamMessage, getConversations, deleteConversation } from '../lib/api';
 import { Plus, Trash2 } from 'lucide-react';
 
 export default function ChatPage() {
@@ -35,28 +35,70 @@ export default function ChatPage() {
     setIsLoading(true);
 
     try {
-      const result = await apiSendMessage(text, conversationId);
-      const toolCalls: ToolCall[] | undefined =
-        result.tool_calls && (result.tool_calls as ToolCall[]).length > 0
-          ? (result.tool_calls as ToolCall[])
-          : undefined;
+      let finalConversationId = conversationId;
+      let completed = false;
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: result.response,
-          toolCalls,
-        },
-      ]);
+      setMessages((prev) => [...prev, { role: 'assistant', content: '', toolCalls: [] }]);
 
-      if (result.conversation_id) {
-        setConversationId(result.conversation_id);
+      await streamMessage(text, conversationId, (event) => {
+        if (event.type === 'text_delta') {
+          setMessages((prev) => {
+            const next = [...prev];
+            const last = next[next.length - 1];
+            if (last?.role === 'assistant') {
+              next[next.length - 1] = {
+                ...last,
+                content: `${last.content}${event.text ?? ''}`,
+              };
+            }
+            return next;
+          });
+          return;
+        }
+
+        if (event.type === 'tool_call_end') {
+          setMessages((prev) => {
+            const next = [...prev];
+            const last = next[next.length - 1];
+            if (last?.role === 'assistant') {
+              const existingCalls = last.toolCalls ?? [];
+              next[next.length - 1] = {
+                ...last,
+                toolCalls: [
+                  ...existingCalls,
+                  {
+                    name: event.name ?? 'tool',
+                    input: event.input ?? {},
+                    result: event.result ?? '',
+                  },
+                ],
+              };
+            }
+            return next;
+          });
+          return;
+        }
+
+        if (event.type === 'done') {
+          completed = true;
+          if (event.conversation_id) {
+            finalConversationId = event.conversation_id;
+            setConversationId(event.conversation_id);
+          }
+        }
+      });
+
+      if (!completed) {
+        throw new Error('Stream ended before completion');
       }
-      loadConversations();
+
+      if (finalConversationId) {
+        setConversationId(finalConversationId);
+      }
+      void loadConversations();
     } catch (err) {
       setMessages((prev) => [
-        ...prev,
+        ...prev.slice(0, -1),
         { role: 'assistant', content: `Error: ${err instanceof Error ? err.message : 'Unknown error'}` },
       ]);
     } finally {
