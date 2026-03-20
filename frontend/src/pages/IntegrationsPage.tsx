@@ -224,6 +224,7 @@ export default function IntegrationsPage() {
     github: '🐙',
     notion: '📝',
     apify: '🕷️',
+    retell: '🎙️',
     custom_webhook: '🪝',
     openai: '🧠',
     anthropic: '🪶',

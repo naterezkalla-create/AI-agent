@@ -74,6 +74,17 @@ PROVIDER_REGISTRY: dict[str, dict[str, Any]] = {
         "tools": ["apify_run_actor"],
         "supports_realtime": False,
     },
+    "retell": {
+        "name": "Retell AI",
+        "category": "voice",
+        "description": "Voice agents, calls, and conversational phone workflows.",
+        "connection_mode": "api_key",
+        "required_env": [],
+        "user_secret_keys": ["retell"],
+        "capabilities": ["voice_agents.create", "voice_agents.read", "calls.create"],
+        "tools": ["retell_create_voice_agent", "retell_list_voice_agents"],
+        "supports_realtime": False,
+    },
     "custom_webhook": {
         "name": "Custom Webhook",
         "category": "automation",

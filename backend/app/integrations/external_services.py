@@ -13,6 +13,7 @@ NOTION_API = "https://api.notion.com/v1"
 NOTION_VERSION = "2022-06-28"
 SLACK_API = "https://slack.com/api"
 APIFY_API = "https://api.apify.com/v2"
+RETELL_API = "https://api.retellai.com"
 
 
 async def _require_secret(user_id: str, provider: str) -> str:
@@ -185,4 +186,66 @@ async def apify_run_actor(user_id: str, actor_id: str, actor_input: dict[str, An
         "status": data.get("status"),
         "default_dataset_id": data.get("defaultDatasetId"),
         "started_at": data.get("startedAt"),
+    }
+
+
+async def retell_get_concurrency(user_id: str) -> dict[str, Any]:
+    token = await _require_secret(user_id, "retell")
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        response = await client.get(
+            f"{RETELL_API}/get-concurrency",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    if response.status_code != 200:
+        raise ValueError("Retell authentication failed")
+    data = response.json()
+    return {
+        "current_concurrency": data.get("current_concurrency"),
+        "concurrency_limit": data.get("concurrency_limit"),
+        "base_concurrency": data.get("base_concurrency"),
+    }
+
+
+async def retell_create_voice_agent(
+    user_id: str,
+    response_engine: dict[str, Any],
+    voice_id: str,
+    agent_name: str | None = None,
+    language: str = "en-US",
+    version_description: str | None = None,
+    webhook_url: str | None = None,
+    begin_message_delay_ms: int | None = None,
+) -> dict[str, Any]:
+    token = await _require_secret(user_id, "retell")
+    payload: dict[str, Any] = {
+        "response_engine": response_engine,
+        "voice_id": voice_id,
+        "language": language,
+    }
+    if agent_name:
+        payload["agent_name"] = agent_name
+    if version_description:
+        payload["version_description"] = version_description
+    if webhook_url:
+        payload["webhook_url"] = webhook_url
+    if begin_message_delay_ms is not None:
+        payload["begin_message_delay_ms"] = begin_message_delay_ms
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            f"{RETELL_API}/create-agent",
+            headers={"Authorization": f"Bearer {token}"},
+            json=payload,
+        )
+    if response.status_code not in {200, 201}:
+        raise ValueError(f"Retell agent creation failed: {response.text}")
+    data = response.json()
+    return {
+        "id": data.get("agent_id"),
+        "title": data.get("agent_name") or agent_name or "Retell Voice Agent",
+        "voice_id": data.get("voice_id"),
+        "version": data.get("version"),
+        "language": data.get("language") or language,
+        "is_published": data.get("is_published"),
+        "response_engine": data.get("response_engine"),
     }

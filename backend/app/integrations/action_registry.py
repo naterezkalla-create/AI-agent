@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import Any, Awaitable, Callable
 
-from app.integrations.external_services import notion_create_page, apify_run_actor
+from app.integrations.external_services import (
+    apify_run_actor,
+    notion_create_page,
+    retell_create_voice_agent,
+)
 
 ActionHandler = Callable[..., Awaitable[dict[str, Any] | list[dict[str, Any]] | str]]
 
@@ -26,6 +30,14 @@ ACTION_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_approval": True,
         "handler": apify_run_actor,
     },
+    "retell_create_voice_agent": {
+        "provider": "retell",
+        "resource_type": "retell_voice_agent",
+        "description": "Create a Retell AI voice agent using a configured response engine and voice.",
+        "risk_level": "high",
+        "requires_approval": True,
+        "handler": retell_create_voice_agent,
+    },
 }
 
 
@@ -41,4 +53,3 @@ def list_external_actions() -> list[dict[str, Any]]:
         }
         for action_id, definition in ACTION_REGISTRY.items()
     ]
-

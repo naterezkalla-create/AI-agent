@@ -480,6 +480,17 @@ async def test_integration_connection(
         if not api_key:
             raise ValueError("Apify API key is required")
         health = await _test_apify(api_key)
+    elif provider == "retell":
+        if api_key:
+            await _store_integration(
+                user_id=user_id,
+                provider=provider,
+                access_secret=api_key,
+                scopes=_capabilities_to_scopes(provider),
+                config=config,
+            )
+        from app.integrations.external_services import retell_get_concurrency
+        health = await retell_get_concurrency(user_id)
     elif provider == "custom_webhook":
         existing = _get_integration_row(user_id, provider)
         if not existing:
