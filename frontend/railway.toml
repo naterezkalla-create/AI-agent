@@ -12,4 +12,4 @@ restartPolicyMaxRetries = 5
 
 [deploy.environment]
 PORT = "3000"
-BACKEND_UPSTREAM = "http://ai-agent.railway.internal:8080"
+BACKEND_UPSTREAM = "https://ai-agent-production-542f.up.railway.app"
