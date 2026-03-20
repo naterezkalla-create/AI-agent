@@ -90,6 +90,14 @@ export async function streamMessage(
 export const getConversations = () =>
   request<{ id: string; title: string; updated_at: string }[]>('/api/conversations');
 
+export const getConversationMessages = (conversationId: string) =>
+  request<
+    Array<
+      | { role: 'user' | 'assistant' | 'system'; content: string }
+      | { role: 'user' | 'assistant' | 'system'; content: unknown[] }
+    >
+  >(`/api/conversations/${conversationId}/messages`);
+
 export const deleteConversation = (id: string) =>
   request<{ deleted: boolean }>(`/api/conversations/${id}`, { method: 'DELETE' });
 
@@ -124,10 +132,16 @@ export const deleteAutomation = (id: string) =>
 // Memory
 export const getMemoryNotes = () => request<unknown[]>('/api/admin/memory');
 
-export const createMemoryNote = (category: string, key: string, content: string) =>
+export const createMemoryNote = (category: string, key: string, content: string, confidence = 0.8) =>
   request<unknown>('/api/admin/memory', {
     method: 'POST',
-    body: JSON.stringify({ category, key, content }),
+    body: JSON.stringify({ category, key, content, confidence }),
+  });
+
+export const updateMemoryNote = (key: string, updates: Record<string, unknown>) =>
+  request<unknown>(`/api/admin/memory/${key}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
   });
 
 export const deleteMemoryNote = (key: string) =>

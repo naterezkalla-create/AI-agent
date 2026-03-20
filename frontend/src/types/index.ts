@@ -40,6 +40,10 @@ export interface MemoryNote {
   category: string;
   key: string;
   content: string;
+  confidence: number;
+  source: string;
+  review_status: string;
+  last_reviewed_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -49,6 +53,12 @@ export interface Integration {
   provider: string;
   scopes: string;
   created_at: string;
+  status?: 'connected' | 'reauth_required' | 'error';
+  last_checked_at?: string;
+  last_sync_at?: string;
+  last_error?: string | null;
+  has_refresh_token?: boolean;
+  capabilities?: string[];
 }
 
 export interface UserSettings {

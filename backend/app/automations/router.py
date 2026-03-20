@@ -12,7 +12,7 @@ async def create_automation(body: AutomationCreate):
     sb = get_supabase()
     now = datetime.now(timezone.utc).isoformat()
     result = sb.table("automations").insert({
-        "user_id": "default",
+        "user_id": body.user_id,
         "name": body.name,
         "cron_expression": body.cron_expression,
         "prompt": body.prompt,
@@ -23,15 +23,15 @@ async def create_automation(body: AutomationCreate):
     auto = result.data[0]
 
     if body.enabled:
-        await add_automation_job(auto["id"], body.name, body.cron_expression, body.prompt)
+        await add_automation_job(auto["id"], body.user_id, body.name, body.cron_expression, body.prompt)
 
     return auto
 
 
 @router.get("/")
-async def list_automations():
+async def list_automations(user_id: str = "default"):
     sb = get_supabase()
-    result = sb.table("automations").select("*").eq("user_id", "default").order("created_at", desc=True).execute()
+    result = sb.table("automations").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
     return result.data
 
 
@@ -47,10 +47,11 @@ async def update_automation(automation_id: str, body: AutomationUpdate):
         raise HTTPException(status_code=404, detail="Automation not found")
 
     auto = result.data[0]
+    auto_user_id = body.user_id or auto.get("user_id", "default")
 
     # Re-schedule or remove based on enabled state
     if auto.get("enabled"):
-        await add_automation_job(auto["id"], auto["name"], auto["cron_expression"], auto["prompt"])
+        await add_automation_job(auto["id"], auto_user_id, auto["name"], auto["cron_expression"], auto["prompt"])
     else:
         remove_automation_job(auto["id"])
 

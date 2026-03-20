@@ -6,7 +6,7 @@ import ConversationExport from '../components/ConversationExport';
 import TypingIndicator from '../components/TypingIndicator';
 import ErrorBoundary from '../components/ErrorBoundary';
 import type { Message, Conversation } from '../types';
-import { streamMessage, getConversations, deleteConversation } from '../lib/api';
+import { streamMessage, getConversations, getConversationMessages, deleteConversation } from '../lib/api';
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -132,9 +132,57 @@ export default function ChatPage() {
   };
 
   const handleSelectConversation = (id: string) => {
-    setConversationId(id);
-    // Load conversation messages (API endpoint would need to be created)
-    setMessages([]);
+    void (async () => {
+      setConversationId(id);
+      setIsLoading(true);
+
+      try {
+        const history = await getConversationMessages(id);
+        const restoredMessages: Message[] = history.flatMap((message) => {
+          if (typeof message.content === 'string') {
+            return [{ role: message.role === 'system' ? 'assistant' : message.role, content: message.content }];
+          }
+
+          const toolCalls = message.content
+            .filter((item): item is { name?: string; input?: Record<string, unknown>; result?: string } =>
+              typeof item === 'object' && item !== null && 'name' in item,
+            )
+            .map((item) => ({
+              name: item.name ?? 'tool',
+              input: item.input ?? {},
+              result: item.result ?? '',
+            }));
+
+          const textParts = message.content
+            .filter((item): item is { type?: string; text?: string; content?: string } => typeof item === 'object' && item !== null)
+            .map((item) => {
+              if (item.type === 'text' && item.text) return item.text;
+              if (typeof item.content === 'string') return item.content;
+              return '';
+            })
+            .filter(Boolean);
+
+          return [
+            {
+              role: message.role === 'system' ? 'assistant' : message.role,
+              content: textParts.join('\n').trim(),
+              toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+            },
+          ];
+        });
+
+        setMessages(restoredMessages);
+      } catch (error) {
+        setMessages([
+          {
+            role: 'assistant',
+            content: `Error loading conversation: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          },
+        ]);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
   };
 
   return (

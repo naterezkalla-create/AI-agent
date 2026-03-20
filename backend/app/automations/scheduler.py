@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 scheduler = AsyncIOScheduler()
 
 
-async def _run_automation(automation_id: str, prompt: str):
+async def _run_automation(automation_id: str, user_id: str, prompt: str):
     """Execute an automation by sending its prompt through the agent loop."""
     from app.core.agent import run
     from datetime import datetime, timezone
@@ -19,7 +19,7 @@ async def _run_automation(automation_id: str, prompt: str):
     try:
         result = await run(
             user_message=prompt,
-            user_id="default",
+            user_id=user_id,
             conversation_id=None,  # Each run creates a new conversation
         )
         logger.info(f"Automation {automation_id} completed: {result.text[:200]}")
@@ -59,7 +59,7 @@ async def load_automations():
             scheduler.add_job(
                 _run_automation,
                 trigger=CronTrigger(**cron_kwargs),
-                args=[auto["id"], auto["prompt"]],
+                args=[auto["id"], auto.get("user_id", "default"), auto["prompt"]],
                 id=auto["id"],
                 replace_existing=True,
                 name=auto["name"],
@@ -81,13 +81,13 @@ def stop_scheduler():
     logger.info("Scheduler stopped")
 
 
-async def add_automation_job(automation_id: str, name: str, cron_expression: str, prompt: str):
+async def add_automation_job(automation_id: str, user_id: str, name: str, cron_expression: str, prompt: str):
     """Add or update a scheduled job."""
     cron_kwargs = _parse_cron(cron_expression)
     scheduler.add_job(
         _run_automation,
         trigger=CronTrigger(**cron_kwargs),
-        args=[automation_id, prompt],
+        args=[automation_id, user_id, prompt],
         id=automation_id,
         replace_existing=True,
         name=name,

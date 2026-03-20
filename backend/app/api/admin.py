@@ -8,6 +8,7 @@ from app.memory.long_term import (
     save_memory_note,
     delete_memory_note,
     search_memory_notes,
+    update_memory_note,
 )
 from app.tools.registry import get_all_tools
 
@@ -23,7 +24,22 @@ async def list_memory(user_id: str = "default", category: Optional[str] = None):
 @router.post("/memory")
 async def create_memory(body: MemoryNoteCreate, user_id: str = "default"):
     """Create or update a memory note."""
-    return await save_memory_note(user_id, body.category, body.key, body.content)
+    return await save_memory_note(
+        user_id,
+        body.category,
+        body.key,
+        body.content,
+        confidence=body.confidence,
+        source=body.source,
+        review_status=body.review_status,
+    )
+
+
+@router.patch("/memory/{key}")
+async def patch_memory(key: str, body: dict, user_id: str = "default"):
+    """Update memory metadata or content."""
+    updated = await update_memory_note(user_id, key, body)
+    return updated or {"updated": False}
 
 
 @router.delete("/memory/{key}")

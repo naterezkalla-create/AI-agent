@@ -26,6 +26,7 @@ class AutomationCreate(BaseModel):
     cron_expression: str
     prompt: str
     enabled: bool = True
+    user_id: str = "default"
 
 
 class AutomationUpdate(BaseModel):
@@ -33,12 +34,16 @@ class AutomationUpdate(BaseModel):
     cron_expression: Optional[str] = None
     prompt: Optional[str] = None
     enabled: Optional[bool] = None
+    user_id: Optional[str] = None
 
 
 class MemoryNoteCreate(BaseModel):
     category: str
     key: str
     content: str
+    confidence: float = 0.8
+    source: str = "manual"
+    review_status: str = "active"
 
 
 class ChatRequest(BaseModel):

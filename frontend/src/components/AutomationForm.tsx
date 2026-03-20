@@ -22,6 +22,24 @@ const CRON_PRESETS = [
   { label: 'Every Sunday at midnight', value: '0 0 * * 0' },
 ];
 
+const AUTOMATION_TEMPLATES = [
+  {
+    name: 'Daily Summary',
+    cron_expression: '0 18 * * *',
+    prompt: 'Review my conversations, entities, and calendar for today and prepare a short daily summary with priorities for tomorrow.',
+  },
+  {
+    name: 'Lead Follow-up',
+    cron_expression: '0 9 * * 1-5',
+    prompt: 'Check my CRM entities for deals or contacts that have not been updated recently and suggest follow-up actions.',
+  },
+  {
+    name: 'Calendar Digest',
+    cron_expression: '0 7 * * *',
+    prompt: 'Look at my Google Calendar for today and summarize key meetings, travel time, and preparation needed.',
+  },
+];
+
 export default function AutomationForm({
   initialData,
   onSubmit,
@@ -32,6 +50,14 @@ export default function AutomationForm({
   const [cron, setCron] = useState(initialData?.cron_expression || '0 9 * * *');
   const [prompt, setPrompt] = useState(initialData?.prompt || '');
   const [usePreset, setUsePreset] = useState(true);
+
+  const applyTemplate = (templateName: string) => {
+    const template = AUTOMATION_TEMPLATES.find((item) => item.name === templateName);
+    if (!template) return;
+    setName(template.name);
+    setCron(template.cron_expression);
+    setPrompt(template.prompt);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,6 +82,27 @@ export default function AutomationForm({
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {/* Name */}
+          {!initialData && (
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Quick Start Template
+              </label>
+              <div className="grid gap-2">
+                {AUTOMATION_TEMPLATES.map((template) => (
+                  <button
+                    key={template.name}
+                    type="button"
+                    onClick={() => applyTemplate(template.name)}
+                    className="text-left bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg px-4 py-3 transition-colors"
+                  >
+                    <div className="text-sm font-medium text-white">{template.name}</div>
+                    <div className="text-xs text-gray-400 mt-1">{template.prompt}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Automation Name

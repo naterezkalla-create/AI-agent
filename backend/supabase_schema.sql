@@ -44,12 +44,17 @@ create table if not exists memory_notes (
     category text not null default 'general',
     key text not null,
     content text not null,
+    confidence double precision not null default 0.8,
+    source text not null default 'manual',
+    review_status text not null default 'active',
+    last_reviewed_at timestamptz,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
 
 create unique index if not exists idx_memory_notes_user_key on memory_notes(user_id, key);
 create index if not exists idx_memory_notes_user_category on memory_notes(user_id, category);
+create index if not exists idx_memory_notes_review_status on memory_notes(user_id, review_status);
 
 -- -------------------------------------------
 -- Entities (CRM: contacts, deals, notes, etc.)

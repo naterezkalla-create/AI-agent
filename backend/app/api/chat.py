@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from app.entities.models import ChatRequest, ChatResponse
 from app.core.agent import run, run_stream
-from app.core.conversation import list_conversations, delete_conversation
+from app.core.conversation import list_conversations, delete_conversation, load_messages
 
 router = APIRouter(prefix="/api", tags=["chat"])
 
@@ -52,6 +52,12 @@ async def chat_stream(body: ChatRequest):
 async def get_conversations(user_id: str = "default"):
     """List all conversations for a user."""
     return await list_conversations(user_id)
+
+
+@router.get("/conversations/{conversation_id}/messages")
+async def get_conversation_messages(conversation_id: str):
+    """Load the full message history for a conversation."""
+    return await load_messages(conversation_id)
 
 
 @router.delete("/conversations/{conversation_id}")

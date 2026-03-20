@@ -28,12 +28,17 @@ class SaveMemoryTool(BaseTool):
                     "type": "string",
                     "description": "The information to remember",
                 },
+                "confidence": {
+                    "type": "number",
+                    "description": "Confidence score from 0 to 1 for how reliable this memory is",
+                    "default": 0.8,
+                },
             },
             "required": ["category", "key", "content"],
         }
 
-    async def execute(self, category: str, key: str, content: str) -> str:
-        await save_memory_note("default", category, key, content)
+    async def execute(self, category: str, key: str, content: str, confidence: float = 0.8) -> str:
+        await save_memory_note("default", category, key, content, confidence=confidence, source="agent")
         return f"Saved to memory [{category}] {key}: {content}"
 
 
@@ -66,5 +71,7 @@ class SearchMemoryTool(BaseTool):
 
         lines = []
         for note in results:
-            lines.append(f"[{note['category']}] {note['key']}: {note['content']}")
+            lines.append(
+                f"[{note['category']}] {note['key']} (confidence {note.get('confidence', 0.8):.1f}, status {note.get('review_status', 'active')}): {note['content']}"
+            )
         return "\n".join(lines)

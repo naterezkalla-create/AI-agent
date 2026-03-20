@@ -156,8 +156,43 @@ async def get_access_token(user_id: str, provider: str = "google") -> Optional[s
 
 async def list_integrations(user_id: str) -> List[dict]:
     sb = get_supabase()
-    result = sb.table("integrations").select("id, provider, scopes, created_at").eq("user_id", user_id).execute()
-    return result.data
+    result = sb.table("integrations").select("*").eq("user_id", user_id).execute()
+
+    integrations = []
+    for row in result.data:
+        status = "connected"
+        last_error = None
+        capabilities: list[str] = []
+
+        try:
+            access_token = await get_access_token(user_id, row["provider"])
+            if not access_token:
+                status = "reauth_required"
+                last_error = "No valid access token available."
+        except Exception as e:
+            status = "error"
+            last_error = str(e)
+
+        scopes = row.get("scopes", "") or ""
+        if "gmail" in scopes:
+            capabilities.append("Gmail")
+        if "calendar" in scopes:
+            capabilities.append("Calendar")
+
+        integrations.append({
+            "id": row["id"],
+            "provider": row["provider"],
+            "scopes": scopes,
+            "created_at": row["created_at"],
+            "status": status,
+            "last_checked_at": datetime.now(timezone.utc).isoformat(),
+            "last_sync_at": row.get("created_at"),
+            "last_error": last_error,
+            "has_refresh_token": bool(row.get("refresh_token_enc")),
+            "capabilities": capabilities,
+        })
+
+    return integrations
 
 
 async def delete_integration(user_id: str, provider: str) -> bool:

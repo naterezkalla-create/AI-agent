@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getMemoryNotes, createMemoryNote, deleteMemoryNote } from '../lib/api';
-import { Plus, Trash2, Brain } from 'lucide-react';
+import { getMemoryNotes, createMemoryNote, updateMemoryNote, deleteMemoryNote } from '../lib/api';
+import { Plus, Trash2, Brain, CheckCircle2, Archive } from 'lucide-react';
 import type { MemoryNote } from '../types';
 
 export default function MemoryPage() {
@@ -9,6 +9,7 @@ export default function MemoryPage() {
   const [newCategory, setNewCategory] = useState('general');
   const [newKey, setNewKey] = useState('');
   const [newContent, setNewContent] = useState('');
+  const [newConfidence, setNewConfidence] = useState(0.8);
   const [filterCategory, setFilterCategory] = useState('');
 
   useEffect(() => {
@@ -26,16 +27,25 @@ export default function MemoryPage() {
 
   const handleCreate = async () => {
     if (!newKey || !newContent) return;
-    await createMemoryNote(newCategory, newKey, newContent);
+    await createMemoryNote(newCategory, newKey, newContent, newConfidence);
     setShowCreate(false);
     setNewKey('');
     setNewContent('');
+    setNewConfidence(0.8);
     loadNotes();
   };
 
   const handleDelete = async (key: string) => {
     if (!confirm('Delete this memory note?')) return;
     await deleteMemoryNote(key);
+    loadNotes();
+  };
+
+  const handleReviewStatus = async (key: string, reviewStatus: string) => {
+    await updateMemoryNote(key, {
+      review_status: reviewStatus,
+      last_reviewed_at: new Date().toISOString(),
+    });
     loadNotes();
   };
 
@@ -100,18 +110,52 @@ export default function MemoryPage() {
                     {note.category}
                   </span>
                   <span className="text-sm font-medium text-gray-200">{note.key}</span>
+                  <span className="text-xs bg-gray-800 text-gray-300 px-2 py-0.5 rounded">
+                    confidence {Math.round((note.confidence ?? 0.8) * 100)}%
+                  </span>
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded ${
+                      note.review_status === 'reviewed'
+                        ? 'bg-green-600/20 text-green-400'
+                        : note.review_status === 'archived'
+                          ? 'bg-gray-700 text-gray-300'
+                          : 'bg-yellow-600/20 text-yellow-300'
+                    }`}
+                  >
+                    {note.review_status}
+                  </span>
                 </div>
-                <button
-                  onClick={() => handleDelete(note.key)}
-                  className="text-gray-500 hover:text-red-400 transition-colors"
-                >
-                  <Trash2 size={14} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleReviewStatus(note.key, 'reviewed')}
+                    className="text-gray-500 hover:text-green-400 transition-colors"
+                    title="Mark reviewed"
+                  >
+                    <CheckCircle2 size={14} />
+                  </button>
+                  <button
+                    onClick={() => handleReviewStatus(note.key, 'archived')}
+                    className="text-gray-500 hover:text-yellow-400 transition-colors"
+                    title="Archive"
+                  >
+                    <Archive size={14} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(note.key)}
+                    className="text-gray-500 hover:text-red-400 transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
               <p className="text-sm text-gray-300 ml-6">{note.content}</p>
-              <p className="text-xs text-gray-600 mt-2 ml-6">
-                Updated: {new Date(note.updated_at).toLocaleString()}
-              </p>
+              <div className="text-xs text-gray-600 mt-2 ml-6 space-y-1">
+                <p>Updated: {new Date(note.updated_at).toLocaleString()}</p>
+                {note.last_reviewed_at && (
+                  <p>Last reviewed: {new Date(note.last_reviewed_at).toLocaleString()}</p>
+                )}
+                <p>Source: {note.source}</p>
+              </div>
             </div>
           ))}
 
@@ -161,6 +205,20 @@ export default function MemoryPage() {
                   placeholder="The fact to remember..."
                   rows={3}
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-gray-400 block mb-1">
+                  Confidence ({Math.round(newConfidence * 100)}%)
+                </label>
+                <input
+                  type="range"
+                  min="0.1"
+                  max="1"
+                  step="0.1"
+                  value={newConfidence}
+                  onChange={(e) => setNewConfidence(Number(e.target.value))}
+                  className="w-full"
                 />
               </div>
               <div className="flex gap-2 justify-end">
