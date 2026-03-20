@@ -64,16 +64,22 @@ async def register(request: Request, user_data: UserCreate):
         )
     
     # Create default user_settings record
-    supabase.table("user_settings").insert({
+    user_settings_payload = {
         "user_id": user_id,
-        "user_id_fk": user_id,
         "system_prompt": "",
         "enabled_integrations": [],
         "preferences": {},
         "api_keys": {},
         "created_at": datetime.utcnow().isoformat(),
         "updated_at": datetime.utcnow().isoformat(),
-    }).execute()
+    }
+    try:
+        supabase.table("user_settings").insert(user_settings_payload).execute()
+    except Exception:
+        supabase.table("user_settings").insert({
+            **user_settings_payload,
+            "user_id_fk": user_id,
+        }).execute()
     
     # Generate token
     token = create_access_token(user_id)

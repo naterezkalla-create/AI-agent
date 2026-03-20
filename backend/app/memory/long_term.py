@@ -3,9 +3,14 @@
 import logging
 from datetime import datetime, timezone
 from typing import Optional, List
+from postgrest.exceptions import APIError
 from app.memory.supabase_client import get_supabase
 
 logger = logging.getLogger(__name__)
+
+
+def _is_missing_column_error(exc: Exception, column: str) -> bool:
+    return isinstance(exc, APIError) and column in str(exc)
 
 
 async def get_memory_notes(user_id: str, category: Optional[str] = None) -> List[dict]:
@@ -15,7 +20,16 @@ async def get_memory_notes(user_id: str, category: Optional[str] = None) -> List
     if category:
         query = query.eq("category", category)
     result = query.order("updated_at", desc=True).execute()
-    return result.data
+    return [
+        {
+            "confidence": 0.8,
+            "source": "manual",
+            "review_status": "active",
+            "last_reviewed_at": None,
+            **note,
+        }
+        for note in result.data
+    ]
 
 
 def _normalize_memory_text(value: str) -> str:
@@ -53,22 +67,33 @@ async def save_memory_note(
     )
 
     if duplicate:
-        result = (
-            sb.table("memory_notes")
-            .update({
-                "category": category,
-                "key": key,
-                "content": content,
-                "confidence": confidence,
-                "source": source,
-                "review_status": review_status,
-                "updated_at": now,
-            })
-            .eq("id", duplicate["id"])
-            .execute()
-        )
+        payload = {
+            "category": category,
+            "key": key,
+            "content": content,
+            "confidence": confidence,
+            "source": source,
+            "review_status": review_status,
+            "updated_at": now,
+        }
+        try:
+            result = sb.table("memory_notes").update(payload).eq("id", duplicate["id"]).execute()
+        except Exception as exc:
+            if not any(_is_missing_column_error(exc, column) for column in ("confidence", "source", "review_status")):
+                raise
+            result = (
+                sb.table("memory_notes")
+                .update({
+                    "category": category,
+                    "key": key,
+                    "content": content,
+                    "updated_at": now,
+                })
+                .eq("id", duplicate["id"])
+                .execute()
+            )
     else:
-        result = sb.table("memory_notes").insert({
+        payload = {
             "user_id": user_id,
             "category": category,
             "key": key,
@@ -78,9 +103,28 @@ async def save_memory_note(
             "review_status": review_status,
             "created_at": now,
             "updated_at": now,
-        }).execute()
+        }
+        try:
+            result = sb.table("memory_notes").insert(payload).execute()
+        except Exception as exc:
+            if not any(_is_missing_column_error(exc, column) for column in ("confidence", "source", "review_status")):
+                raise
+            result = sb.table("memory_notes").insert({
+                "user_id": user_id,
+                "category": category,
+                "key": key,
+                "content": content,
+                "created_at": now,
+                "updated_at": now,
+            }).execute()
 
-    return result.data[0]
+    return {
+        "confidence": confidence,
+        "source": source,
+        "review_status": review_status,
+        "last_reviewed_at": None,
+        **result.data[0],
+    }
 
 
 async def delete_memory_note(user_id: str, key: str) -> bool:
@@ -115,11 +159,37 @@ async def update_memory_note(user_id: str, key: str, updates: dict) -> Optional[
     sb = get_supabase()
     payload = {**updates, "updated_at": datetime.now(timezone.utc).isoformat()}
 
-    result = (
-        sb.table("memory_notes")
-        .update(payload)
-        .eq("user_id", user_id)
-        .eq("key", key)
-        .execute()
+    try:
+        result = (
+            sb.table("memory_notes")
+            .update(payload)
+            .eq("user_id", user_id)
+            .eq("key", key)
+            .execute()
+        )
+    except Exception as exc:
+        if not any(_is_missing_column_error(exc, column) for column in ("confidence", "source", "review_status", "last_reviewed_at")):
+            raise
+        legacy_payload = {
+            field: value
+            for field, value in payload.items()
+            if field not in {"confidence", "source", "review_status", "last_reviewed_at"}
+        }
+        result = (
+            sb.table("memory_notes")
+            .update(legacy_payload)
+            .eq("user_id", user_id)
+            .eq("key", key)
+            .execute()
+        )
+    return (
+        {
+            "confidence": 0.8,
+            "source": "manual",
+            "review_status": "active",
+            "last_reviewed_at": None,
+            **result.data[0],
+        }
+        if result.data
+        else None
     )
-    return result.data[0] if result.data else None

@@ -7,6 +7,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setIsSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState('');
+  const [saveError, setSaveError] = useState('');
   const [availableIntegrations] = useState(['google', 'telegram', 'slack', 'github']);
   
   // API Key Management State
@@ -62,14 +63,19 @@ export default function SettingsPage() {
 
   const loadSettings = async () => {
     try {
+      setSaveError('');
       setLoading(true);
       const response = await fetch('/api/settings/', {
         headers: authHeaders(),
       });
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
       const data = await response.json();
       setLocalSettings(data);
     } catch (error) {
       console.error('Failed to load settings:', error);
+      setSaveError(error instanceof Error ? error.message : 'Failed to load settings');
     } finally {
       setLoading(false);
     }
@@ -77,14 +83,19 @@ export default function SettingsPage() {
 
   const loadApiKeys = async () => {
     try {
+      setSaveError('');
       setLoadingKeys(true);
       const response = await fetch('/api/settings/keys', {
         headers: authHeaders(),
       });
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
       const data = await response.json();
       setApiKeys(data.keys || {});
     } catch (error) {
       console.error('Failed to load API keys:', error);
+      setSaveError(error instanceof Error ? error.message : 'Failed to load API keys');
     } finally {
       setLoadingKeys(false);
     }
@@ -152,6 +163,7 @@ export default function SettingsPage() {
   const handleSaveSettings = async () => {
     try {
       setIsSaving(true);
+      setSaveError('');
       const response = await fetch('/api/settings/', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -167,9 +179,12 @@ export default function SettingsPage() {
         setLocalSettings(updated);
         setSavedMessage('Settings saved successfully!');
         setTimeout(() => setSavedMessage(''), 3000);
+      } else {
+        setSaveError(await response.text());
       }
     } catch (error) {
       console.error('Failed to save settings:', error);
+      setSaveError(error instanceof Error ? error.message : 'Failed to save settings');
     } finally {
       setIsSaving(false);
     }
@@ -230,6 +245,12 @@ export default function SettingsPage() {
             <div className="flex items-center gap-2 text-green-400 text-sm">
               <CheckCircle size={16} />
               {savedMessage || keyMessage}
+            </div>
+          )}
+          {saveError && (
+            <div className="flex items-center gap-2 text-red-400 text-sm max-w-md text-right">
+              <AlertCircle size={16} />
+              {saveError}
             </div>
           )}
         </div>

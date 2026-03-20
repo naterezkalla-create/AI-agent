@@ -2,10 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.api.deps import get_current_user
 from app.memory.supabase_client import get_supabase
-from app.core.encryption import encrypt_api_key, decrypt_api_key
+from app.core.encryption import encrypt_api_key
 from typing import Optional, List, Dict
 from datetime import datetime
-import json
 import logging
 
 logger = logging.getLogger(__name__)
@@ -13,12 +12,29 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 
+def _normalize_settings_row(row: dict | None, user_id: str) -> dict | None:
+    if not row:
+        return None
+    return {
+        **row,
+        "user_id": row.get("user_id") or row.get("user_id_fk") or user_id,
+        "system_prompt": row.get("system_prompt") or "",
+        "enabled_integrations": row.get("enabled_integrations") or [],
+        "preferences": row.get("preferences") or {},
+    }
+
+
 def _get_settings_row(sb, user_id: str):
     result = sb.table("user_settings").select("*").eq("user_id", user_id).execute()
     if result.data:
-        return result.data[0]
-    fallback = sb.table("user_settings").select("*").eq("user_id_fk", user_id).execute()
-    return fallback.data[0] if fallback.data else None
+        return _normalize_settings_row(result.data[0], user_id)
+    try:
+        fallback = sb.table("user_settings").select("*").eq("user_id_fk", user_id).execute()
+        if fallback.data:
+            return _normalize_settings_row(fallback.data[0], user_id)
+    except Exception:
+        return None
+    return None
 
 
 def _get_settings_row_by_id(sb, user_id: str):
@@ -67,7 +83,7 @@ async def get_settings(user_id: str = Depends(get_current_user)):
             default_settings = await create_default_settings(user_id, sb)
             return default_settings
 
-        return settings_row
+        return _normalize_settings_row(settings_row, user_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -79,7 +95,6 @@ async def create_default_settings(user_id: str, sb=None):
     
     default_data = {
         "user_id": user_id,
-        "user_id_fk": user_id,
         "system_prompt": "You are a helpful AI assistant. Be concise and professional.",
         "enabled_integrations": ["google", "telegram"],
         "preferences": {
@@ -92,9 +107,12 @@ async def create_default_settings(user_id: str, sb=None):
         "created_at": datetime.utcnow().isoformat(),
         "updated_at": datetime.utcnow().isoformat(),
     }
-    
-    result = sb.table("user_settings").insert(default_data).execute()
-    return result.data[0] if result.data else default_data
+
+    try:
+        result = sb.table("user_settings").insert(default_data).execute()
+    except Exception:
+        result = sb.table("user_settings").insert({**default_data, "user_id_fk": user_id}).execute()
+    return _normalize_settings_row(result.data[0], user_id) if result.data else _normalize_settings_row(default_data, user_id)
 
 
 @router.put("/", response_model=SettingsResponse)
@@ -130,7 +148,7 @@ async def update_settings(settings: UserSettings, user_id: str = Depends(get_cur
         if not result.data:
             raise HTTPException(status_code=404, detail="Settings not found")
         
-        return result.data[0]
+        return _normalize_settings_row(result.data[0], user_id)
     except HTTPException:
         raise
     except Exception as e:

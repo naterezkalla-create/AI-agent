@@ -11,6 +11,7 @@ export default function MemoryPage() {
   const [newContent, setNewContent] = useState('');
   const [newConfidence, setNewConfidence] = useState(0.8);
   const [filterCategory, setFilterCategory] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     loadNotes();
@@ -28,33 +29,49 @@ export default function MemoryPage() {
     try {
       const data = await getMemoryNotes() as MemoryNote[];
       setNotes(data);
-    } catch {
-      // API may not be available
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load memory');
     }
   };
 
   const handleCreate = async () => {
     if (!newKey || !newContent) return;
-    await createMemoryNote(newCategory, newKey, newContent, newConfidence);
-    setShowCreate(false);
-    setNewKey('');
-    setNewContent('');
-    setNewConfidence(0.8);
-    loadNotes();
+    try {
+      await createMemoryNote(newCategory, newKey, newContent, newConfidence);
+      setError('');
+      setShowCreate(false);
+      setNewKey('');
+      setNewContent('');
+      setNewConfidence(0.8);
+      void loadNotes();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save memory');
+    }
   };
 
   const handleDelete = async (key: string) => {
     if (!confirm('Delete this memory note?')) return;
-    await deleteMemoryNote(key);
-    loadNotes();
+    try {
+      await deleteMemoryNote(key);
+      setError('');
+      void loadNotes();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete memory');
+    }
   };
 
   const handleReviewStatus = async (key: string, reviewStatus: string) => {
-    await updateMemoryNote(key, {
-      review_status: reviewStatus,
-      last_reviewed_at: new Date().toISOString(),
-    });
-    loadNotes();
+    try {
+      await updateMemoryNote(key, {
+        review_status: reviewStatus,
+        last_reviewed_at: new Date().toISOString(),
+      });
+      setError('');
+      void loadNotes();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update memory');
+    }
   };
 
   const categories = [...new Set(notes.map((n) => n.category))];
@@ -105,6 +122,11 @@ export default function MemoryPage() {
       )}
 
       <div className="flex-1 overflow-y-auto p-6">
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-300">
+            {error}
+          </div>
+        )}
         <div className="space-y-3 max-w-4xl">
           {filtered.map((note) => (
             <div

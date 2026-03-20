@@ -27,9 +27,12 @@ async def get_user_custom_prompt(user_id: str = "default") -> str:
         result = sb.table("user_settings").select("system_prompt").eq("user_id", user_id).execute()
         if result.data and result.data[0].get("system_prompt"):
             return result.data[0]["system_prompt"]
-        fallback = sb.table("user_settings").select("system_prompt").eq("user_id_fk", user_id).execute()
-        if fallback.data and fallback.data[0].get("system_prompt"):
-            return fallback.data[0]["system_prompt"]
+        try:
+            fallback = sb.table("user_settings").select("system_prompt").eq("user_id_fk", user_id).execute()
+            if fallback.data and fallback.data[0].get("system_prompt"):
+                return fallback.data[0]["system_prompt"]
+        except Exception:
+            return ""
     except Exception as e:
         logger.warning(f"Failed to fetch custom system prompt for {user_id}: {e}")
     return ""
