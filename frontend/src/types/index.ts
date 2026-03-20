@@ -84,6 +84,14 @@ export interface Integration {
   config?: Record<string, unknown>;
 }
 
+export interface IntegrationConnectResult {
+  status: string;
+  provider: string;
+  integration?: Integration;
+  health?: Record<string, unknown>;
+  webhook_url?: string;
+}
+
 export interface IntegrationProvider {
   id: string;
   name: string;

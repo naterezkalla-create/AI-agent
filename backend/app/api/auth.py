@@ -17,6 +17,7 @@ PUBLIC_PREFIXES = [
     "/redoc",
     "/webhook/telegram",
     "/integrations/google/callback",
+    "/integrations/webhook/custom",
     "/entities",
     "/ws/",  # All WebSocket connections
 ]

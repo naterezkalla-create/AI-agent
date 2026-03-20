@@ -173,12 +173,24 @@ export const deleteMemoryNote = (key: string) =>
   request<{ deleted: boolean }>(`/api/admin/memory/${key}`, { method: 'DELETE' });
 
 // Integrations
-export const getIntegrations = () => request<unknown[]>('/integrations');
+export const getIntegrations = () => request<unknown[]>('/api/integrations');
 
-export const getIntegrationProviders = () => request<unknown[]>('/integrations/providers');
+export const getIntegrationProviders = () => request<unknown[]>('/api/integrations/providers');
 
 export const deleteIntegration = (provider: string) =>
-  request<unknown>(`/integrations/${provider}`, { method: 'DELETE' });
+  request<unknown>(`/api/integrations/${provider}`, { method: 'DELETE' });
+
+export const connectIntegration = (provider: string, payload: Record<string, unknown>) =>
+  request<unknown>(`/api/integrations/${provider}/connect`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+
+export const testIntegration = (provider: string, payload?: Record<string, unknown>) =>
+  request<unknown>(`/api/integrations/${provider}/test`, {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {}),
+  });
 
 // Admin
 export const getSystemStatus = () =>

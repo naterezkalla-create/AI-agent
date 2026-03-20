@@ -196,6 +196,7 @@ def create_app() -> FastAPI:
     app.include_router(entities_router)
     app.include_router(automations_router)
     app.include_router(integrations_router)
+    app.include_router(integrations_router, prefix="/api")
     app.include_router(telegram_router)
     app.include_router(websocket_router)
 
