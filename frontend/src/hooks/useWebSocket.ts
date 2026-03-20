@@ -9,8 +9,11 @@ export function useWebSocket() {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     // Connect directly to backend to avoid Vite proxy issues
-    const ws = new WebSocket('ws://localhost:8000/ws/chat');
-    console.log('[WS] Connecting to ws://localhost:8000/ws/chat');
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const token = localStorage.getItem('auth_token');
+    const wsUrl = `${protocol}://${window.location.host}/ws/chat${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+    const ws = new WebSocket(wsUrl);
+    console.log(`[WS] Connecting to ${wsUrl}`);
 
     ws.onopen = () => {
       console.log('[WS] Connected');

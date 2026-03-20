@@ -3,6 +3,7 @@
 import json
 import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from app.api.deps import get_current_user_ws
 from app.core.agent import run_stream
 
 logger = logging.getLogger(__name__)
@@ -19,13 +20,13 @@ async def websocket_chat(websocket: WebSocket):
     conversation_id = None
 
     try:
+        user_id = await get_current_user_ws(websocket)
         while True:
             # Receive message from client
             data = await websocket.receive_text()
             payload = json.loads(data)
 
             user_message = payload.get("message", "")
-            user_id = payload.get("user_id", "default")
             conversation_id = payload.get("conversation_id", conversation_id)
 
             if not user_message:

@@ -1,12 +1,23 @@
 import { useState, useEffect } from 'react';
-import { Activity, Mail, Zap, TrendingUp, Clock, CheckCircle, AlertCircle, DollarSign } from 'lucide-react';
-import { getIntegrations, getConversations } from '../lib/api';
-import type { Integration, Conversation } from '../types';
+import { Activity, Mail, Zap, TrendingUp, Clock, CheckCircle, AlertCircle, DollarSign, ShieldAlert, Bot } from 'lucide-react';
+import {
+  approveAutomationSuggestion,
+  getAutomationSuggestions,
+  getConversations,
+  getIntegrations,
+  getIssues,
+  rejectAutomationSuggestion,
+  scanIssues,
+  subscribeToRealtime,
+  updateIssueStatus,
+} from '../lib/api';
+import type { AutomationSuggestion, Integration, Conversation, Issue } from '../types';
 
 interface Stats {
   totalConversations: number;
   totalToolCalls: number;
   connectedIntegrations: number;
+  openIssues: number;
 }
 
 interface CostData {
@@ -22,15 +33,24 @@ export default function DashboardPage() {
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [costs, setCosts] = useState<CostData | null>(null);
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [suggestions, setSuggestions] = useState<AutomationSuggestion[]>([]);
   const [stats, setStats] = useState<Stats>({
     totalConversations: 0,
     totalToolCalls: 0,
     connectedIntegrations: 0,
+    openIssues: 0,
   });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadDashboardData();
+  }, []);
+
+  useEffect(() => {
+    return subscribeToRealtime(['issues', 'automation_suggestions', 'automations', 'integrations', 'conversation'], () => {
+      void loadDashboardData();
+    });
   }, []);
 
   const loadDashboardData = async () => {
@@ -47,17 +67,28 @@ export default function DashboardPage() {
       
       // Load costs
       try {
-        const costData = await fetch('/api/costs/summary?days=30').then(r => r.json());
+        const token = localStorage.getItem('auth_token');
+        const costData = await fetch('/api/costs/summary?days=30', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }).then(r => r.json());
         setCosts(costData);
       } catch {
         setCosts(null);
       }
+
+      const [issueData, suggestionData] = await Promise.all([
+        getIssues('open') as Promise<Issue[]>,
+        getAutomationSuggestions('proposed') as Promise<AutomationSuggestion[]>,
+      ]);
+      setIssues(issueData || []);
+      setSuggestions(suggestionData || []);
       
       // Calculate stats
       setStats({
         totalConversations: conversationData?.length || 0,
         totalToolCalls: conversationData?.length * 5 || 0, // Approximate: 5 interactions per conversation
         connectedIntegrations: integrationData?.length || 0,
+        openIssues: issueData?.length || 0,
       });
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
@@ -89,6 +120,28 @@ export default function DashboardPage() {
   };
 
   const recentConversations = conversations.slice(0, 5);
+  const priorityIssues = issues.slice(0, 5);
+  const topSuggestions = suggestions.slice(0, 3);
+
+  const handleScan = async () => {
+    await scanIssues();
+    await loadDashboardData();
+  };
+
+  const handleIssueStatus = async (issueId: string, status: 'resolved' | 'dismissed') => {
+    await updateIssueStatus(issueId, status);
+    await loadDashboardData();
+  };
+
+  const handleApproveSuggestion = async (suggestionId: string) => {
+    await approveAutomationSuggestion(suggestionId);
+    await loadDashboardData();
+  };
+
+  const handleRejectSuggestion = async (suggestionId: string) => {
+    await rejectAutomationSuggestion(suggestionId);
+    await loadDashboardData();
+  };
 
   return (
     <div className="h-full flex flex-col bg-gray-900">
@@ -174,6 +227,138 @@ export default function DashboardPage() {
                     <DollarSign className="text-yellow-400" size={24} />
                   </div>
                 </div>
+              </div>
+
+              <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 hover:border-red-700 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm font-medium">Open Issues</p>
+                    <p className="text-3xl font-bold mt-2">{stats.openIssues}</p>
+                  </div>
+                  <div className="p-3 bg-red-900/30 rounded-lg">
+                    <ShieldAlert className="text-red-400" size={24} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-700 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <ShieldAlert size={20} className="text-red-400" />
+                  <h2 className="text-lg font-semibold">Detected Issues</h2>
+                </div>
+                <button
+                  onClick={handleScan}
+                  className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors"
+                >
+                  Scan Now
+                </button>
+              </div>
+              <div className="divide-y divide-gray-700">
+                {priorityIssues.length > 0 ? (
+                  priorityIssues.map((issue) => (
+                    <div key={issue.id} className="px-6 py-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{issue.title}</p>
+                            <span className={`text-xs px-2 py-0.5 rounded ${
+                              issue.severity === 'high'
+                                ? 'bg-red-900/40 text-red-300'
+                                : issue.severity === 'medium'
+                                  ? 'bg-yellow-900/40 text-yellow-300'
+                                  : 'bg-blue-900/40 text-blue-300'
+                            }`}>
+                              {issue.severity}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-400 mt-1">{issue.description}</p>
+                          {issue.suggested_action && (
+                            <p className="text-xs text-gray-500 mt-2">Suggested action: {issue.suggested_action}</p>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleIssueStatus(issue.id, 'resolved')}
+                            className="px-3 py-2 bg-green-900/30 text-green-300 rounded-lg text-xs hover:bg-green-900/40 transition-colors"
+                          >
+                            Resolve
+                          </button>
+                          <button
+                            onClick={() => handleIssueStatus(issue.id, 'dismissed')}
+                            className="px-3 py-2 bg-gray-700 text-gray-300 rounded-lg text-xs hover:bg-gray-600 transition-colors"
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-6 py-8 text-center">
+                    <CheckCircle size={40} className="text-green-500 mx-auto mb-3 opacity-70" />
+                    <p className="text-gray-300">No active issues detected</p>
+                    <p className="text-xs text-gray-500 mt-2">Run a scan after connecting more systems to surface opportunities.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-700 flex items-center gap-2">
+                <Bot size={20} className="text-purple-400" />
+                <h2 className="text-lg font-semibold">Automation Suggestions</h2>
+              </div>
+              <div className="divide-y divide-gray-700">
+                {topSuggestions.length > 0 ? (
+                  topSuggestions.map((suggestion) => (
+                    <div key={suggestion.id} className="px-6 py-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{suggestion.name}</p>
+                            <span className={`text-xs px-2 py-0.5 rounded ${
+                              suggestion.risk_level === 'high'
+                                ? 'bg-red-900/40 text-red-300'
+                                : suggestion.risk_level === 'medium'
+                                  ? 'bg-yellow-900/40 text-yellow-300'
+                                  : 'bg-green-900/40 text-green-300'
+                            }`}>
+                              {suggestion.risk_level} risk
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-400 mt-1">{suggestion.rationale}</p>
+                          <p className="text-xs text-gray-500 mt-2">
+                            Trigger: {suggestion.trigger_type === 'event'
+                              ? ((suggestion.trigger_config?.event_types as string[] | undefined)?.join(', ') ?? 'event')
+                              : suggestion.cron_expression}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleApproveSuggestion(suggestion.id)}
+                            className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-xs text-white transition-colors"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => handleRejectSuggestion(suggestion.id)}
+                            className="px-3 py-2 bg-gray-700 text-gray-300 rounded-lg text-xs hover:bg-gray-600 transition-colors"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-6 py-8 text-center">
+                    <Bot size={40} className="text-purple-500 mx-auto mb-3 opacity-70" />
+                    <p className="text-gray-300">No automation suggestions yet</p>
+                    <p className="text-xs text-gray-500 mt-2">Suggestions appear automatically when detectors find recurring issues.</p>
+                  </div>
+                )}
               </div>
             </div>
 

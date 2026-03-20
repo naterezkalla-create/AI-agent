@@ -6,7 +6,7 @@ import ConversationExport from '../components/ConversationExport';
 import TypingIndicator from '../components/TypingIndicator';
 import ErrorBoundary from '../components/ErrorBoundary';
 import type { Message, Conversation } from '../types';
-import { streamMessage, getConversations, getConversationMessages, deleteConversation } from '../lib/api';
+import { streamMessage, getConversations, getConversationMessages, deleteConversation, subscribeToRealtime } from '../lib/api';
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -17,6 +17,14 @@ export default function ChatPage() {
 
   useEffect(() => {
     loadConversations();
+  }, []);
+
+  useEffect(() => {
+    return subscribeToRealtime(['conversation'], (event) => {
+      if (event.type === 'conversation.updated' || event.type === 'conversation.deleted') {
+        void loadConversations();
+      }
+    });
   }, []);
 
   // Auto-scroll

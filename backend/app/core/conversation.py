@@ -28,6 +28,13 @@ async def get_or_create_conversation(user_id: str, conversation_id: Optional[str
     return result.data[0]
 
 
+async def get_conversation(user_id: str, conversation_id: str) -> Optional[dict]:
+    """Fetch a conversation only if it belongs to the given user."""
+    sb = get_supabase()
+    result = sb.table("conversations").select("*").eq("id", conversation_id).eq("user_id", user_id).execute()
+    return result.data[0] if result.data else None
+
+
 async def load_messages(conversation_id: str) -> List[dict]:
     """Load message history for a conversation."""
     sb = get_supabase()
@@ -99,7 +106,10 @@ async def list_conversations(user_id: str, limit: int = 50) -> List[dict]:
     return result.data
 
 
-async def delete_conversation(conversation_id: str) -> None:
+async def delete_conversation(conversation_id: str, user_id: str) -> None:
     sb = get_supabase()
+    convo = sb.table("conversations").select("id").eq("id", conversation_id).eq("user_id", user_id).execute()
+    if not convo.data:
+        return
     sb.table("messages").delete().eq("conversation_id", conversation_id).execute()
-    sb.table("conversations").delete().eq("id", conversation_id).execute()
+    sb.table("conversations").delete().eq("id", conversation_id).eq("user_id", user_id).execute()

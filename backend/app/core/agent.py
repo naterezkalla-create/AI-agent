@@ -106,7 +106,7 @@ async def run(
             tool_results = []
             for tool_use in tool_uses:
                 logger.info(f"Calling tool: {tool_use.name}")
-                result = await execute_tool(tool_use.name, tool_use.input)
+                result = await execute_tool(tool_use.name, tool_use.input, user_id=user_id)
 
                 # Extract result or error, and ensure it's a string
                 tool_result_content = result.get("result", result.get("error", "No result"))
@@ -221,7 +221,7 @@ async def run_stream(
             tool_results = []
             for tool_use in tool_uses:
                 yield {"type": "tool_call_start", "name": tool_use.name, "input": tool_use.input}
-                result = await execute_tool(tool_use.name, tool_use.input)
+                result = await execute_tool(tool_use.name, tool_use.input, user_id=user_id)
                 
                 # Extract result and ensure it's a string
                 tool_result_content = result.get("result", result.get("error", "No result"))

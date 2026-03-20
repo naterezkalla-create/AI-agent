@@ -52,10 +52,20 @@ export default function SettingsPage() {
     loadApiKeys();
   }, []);
 
+  const authHeaders = (): Record<string, string> => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      return {};
+    }
+    return { Authorization: `Bearer ${token}` };
+  };
+
   const loadSettings = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/settings/?user_id=default');
+      const response = await fetch('/api/settings/', {
+        headers: authHeaders(),
+      });
       const data = await response.json();
       setLocalSettings(data);
     } catch (error) {
@@ -68,7 +78,9 @@ export default function SettingsPage() {
   const loadApiKeys = async () => {
     try {
       setLoadingKeys(true);
-      const response = await fetch('/api/settings/keys?user_id=default');
+      const response = await fetch('/api/settings/keys', {
+        headers: authHeaders(),
+      });
       const data = await response.json();
       setApiKeys(data.keys || {});
     } catch (error) {
@@ -94,9 +106,9 @@ export default function SettingsPage() {
 
     try {
       setAddingKey(true);
-      const response = await fetch(`/api/settings/keys/${selectedService}?user_id=default`, {
+      const response = await fetch(`/api/settings/keys/${selectedService}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ key: apiKeyInput }),
       });
 
@@ -120,8 +132,9 @@ export default function SettingsPage() {
     if (!confirm(`Are you sure you want to delete the ${service} API key?`)) return;
 
     try {
-      const response = await fetch(`/api/settings/keys/${service}?user_id=default`, {
+      const response = await fetch(`/api/settings/keys/${service}`, {
         method: 'DELETE',
+        headers: authHeaders(),
       });
 
       if (response.ok) {
@@ -139,9 +152,9 @@ export default function SettingsPage() {
   const handleSaveSettings = async () => {
     try {
       setIsSaving(true);
-      const response = await fetch('/api/settings/?user_id=default', {
+      const response = await fetch('/api/settings/', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
           system_prompt: localSettings.system_prompt,
           enabled_integrations: localSettings.enabled_integrations,
@@ -178,7 +191,10 @@ export default function SettingsPage() {
     if (!confirm('Are you sure you want to reset all settings to defaults?')) return;
 
     try {
-      const response = await fetch('/api/settings/reset?user_id=default', { method: 'POST' });
+      const response = await fetch('/api/settings/reset', {
+        method: 'POST',
+        headers: authHeaders(),
+      });
       if (response.ok) {
         const reset = await response.json();
         setLocalSettings(reset);

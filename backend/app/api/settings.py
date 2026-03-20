@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from app.api.deps import get_current_user
 from app.memory.supabase_client import get_supabase
 from app.core.encryption import encrypt_api_key, decrypt_api_key
 from typing import Optional, List, Dict
@@ -10,6 +11,19 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
+
+
+def _get_settings_row(sb, user_id: str):
+    result = sb.table("user_settings").select("*").eq("user_id", user_id).execute()
+    if result.data:
+        return result.data[0]
+    fallback = sb.table("user_settings").select("*").eq("user_id_fk", user_id).execute()
+    return fallback.data[0] if fallback.data else None
+
+
+def _get_settings_row_by_id(sb, user_id: str):
+    row = _get_settings_row(sb, user_id)
+    return row["id"] if row else None
 
 
 class UserSettings(BaseModel):
@@ -42,18 +56,18 @@ class APIKeysListResponse(BaseModel):
 
 
 @router.get("/", response_model=SettingsResponse)
-async def get_settings(user_id: str = "default"):
+async def get_settings(user_id: str = Depends(get_current_user)):
     """Get user settings"""
     try:
         sb = get_supabase()
-        result = sb.table("user_settings").select("*").eq("user_id", user_id).execute()
-        
-        if not result.data:
+        settings_row = _get_settings_row(sb, user_id)
+
+        if not settings_row:
             # Create default settings if they don't exist
             default_settings = await create_default_settings(user_id, sb)
             return default_settings
-        
-        return result.data[0]
+
+        return settings_row
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -65,6 +79,7 @@ async def create_default_settings(user_id: str, sb=None):
     
     default_data = {
         "user_id": user_id,
+        "user_id_fk": user_id,
         "system_prompt": "You are a helpful AI assistant. Be concise and professional.",
         "enabled_integrations": ["google", "telegram"],
         "preferences": {
@@ -83,11 +98,15 @@ async def create_default_settings(user_id: str, sb=None):
 
 
 @router.put("/", response_model=SettingsResponse)
-async def update_settings(settings: UserSettings, user_id: str = "default"):
+async def update_settings(settings: UserSettings, user_id: str = Depends(get_current_user)):
     """Update user settings"""
     try:
         sb = get_supabase()
-        
+        row_id = _get_settings_row_by_id(sb, user_id)
+        if not row_id:
+            await create_default_settings(user_id, sb)
+            row_id = _get_settings_row_by_id(sb, user_id)
+
         # Prepare update data
         update_data = {
             "updated_at": datetime.utcnow().isoformat(),
@@ -99,14 +118,14 @@ async def update_settings(settings: UserSettings, user_id: str = "default"):
             update_data["enabled_integrations"] = settings.enabled_integrations
         if settings.preferences is not None:
             # Merge with existing preferences
-            existing = sb.table("user_settings").select("preferences").eq("user_id", user_id).execute()
-            if existing.data and existing.data[0].get("preferences"):
-                merged_prefs = {**existing.data[0]["preferences"], **settings.preferences}
+            existing = _get_settings_row(sb, user_id)
+            if existing and existing.get("preferences"):
+                merged_prefs = {**existing["preferences"], **settings.preferences}
                 update_data["preferences"] = merged_prefs
             else:
                 update_data["preferences"] = settings.preferences
-        
-        result = sb.table("user_settings").update(update_data).eq("user_id", user_id).execute()
+
+        result = sb.table("user_settings").update(update_data).eq("id", row_id).execute()
         
         if not result.data:
             raise HTTPException(status_code=404, detail="Settings not found")
@@ -119,13 +138,13 @@ async def update_settings(settings: UserSettings, user_id: str = "default"):
 
 
 @router.post("/reset", response_model=SettingsResponse)
-async def reset_settings(user_id: str = "default"):
+async def reset_settings(user_id: str = Depends(get_current_user)):
     """Reset settings to defaults"""
     try:
         sb = get_supabase()
-        
-        # Delete existing settings
-        sb.table("user_settings").delete().eq("user_id", user_id).execute()
+        row_id = _get_settings_row_by_id(sb, user_id)
+        if row_id:
+            sb.table("user_settings").delete().eq("id", row_id).execute()
         
         # Create new default settings
         return await create_default_settings(user_id, sb)
@@ -134,16 +153,16 @@ async def reset_settings(user_id: str = "default"):
 
 
 @router.post("/integrations/{integration}/toggle")
-async def toggle_integration(integration: str, enabled: bool, user_id: str = "default"):
+async def toggle_integration(integration: str, enabled: bool, user_id: str = Depends(get_current_user)):
     """Enable/disable a specific integration"""
     try:
         sb = get_supabase()
-        result = sb.table("user_settings").select("enabled_integrations").eq("user_id", user_id).execute()
-        
-        if not result.data:
+        existing = _get_settings_row(sb, user_id)
+
+        if not existing:
             raise HTTPException(status_code=404, detail="Settings not found")
-        
-        integrations = result.data[0].get("enabled_integrations", [])
+
+        integrations = existing.get("enabled_integrations", [])
         
         if enabled and integration not in integrations:
             integrations.append(integration)
@@ -153,7 +172,7 @@ async def toggle_integration(integration: str, enabled: bool, user_id: str = "de
         update_result = sb.table("user_settings").update({
             "enabled_integrations": integrations,
             "updated_at": datetime.utcnow().isoformat(),
-        }).eq("user_id", user_id).execute()
+        }).eq("id", existing["id"]).execute()
         
         return {"success": True, "integration": integration, "enabled": enabled, "integrations": integrations}
     except HTTPException:
@@ -165,16 +184,16 @@ async def toggle_integration(integration: str, enabled: bool, user_id: str = "de
 # API Key Management Endpoints
 
 @router.get("/keys", response_model=APIKeysListResponse)
-async def list_api_keys(user_id: str = "default"):
+async def list_api_keys(user_id: str = Depends(get_current_user)):
     """List which services have API keys configured (never return actual keys)"""
     try:
         sb = get_supabase()
-        result = sb.table("user_settings").select("api_keys").eq("user_id", user_id).execute()
-        
-        if not result.data:
+        existing = _get_settings_row(sb, user_id)
+
+        if not existing:
             raise HTTPException(status_code=404, detail="Settings not found")
-        
-        api_keys_data = result.data[0].get("api_keys", {})
+
+        api_keys_data = existing.get("api_keys", {})
         # Convert to list of services that have keys (without revealing values)
         keys_info = {service: bool(encrypted_key) for service, encrypted_key in api_keys_data.items()}
         
@@ -187,7 +206,7 @@ async def list_api_keys(user_id: str = "default"):
 
 
 @router.post("/keys/{service}", response_model=APIKeyResponse)
-async def store_api_key(service: str, request: APIKeyRequest, user_id: str = "default"):
+async def store_api_key(service: str, request: APIKeyRequest, user_id: str = Depends(get_current_user)):
     """Store an encrypted API key for a service"""
     try:
         # Validate service name - support many services
@@ -223,19 +242,19 @@ async def store_api_key(service: str, request: APIKeyRequest, user_id: str = "de
         
         # Get current settings
         sb = get_supabase()
-        result = sb.table("user_settings").select("api_keys").eq("user_id", user_id).execute()
-        
-        if not result.data:
+        existing = _get_settings_row(sb, user_id)
+
+        if not existing:
             raise HTTPException(status_code=404, detail="Settings not found")
-        
+
         # Update api_keys JSONB
-        api_keys = result.data[0].get("api_keys", {})
+        api_keys = existing.get("api_keys", {})
         api_keys[service] = encrypted_key
         
         update_result = sb.table("user_settings").update({
             "api_keys": api_keys,
             "updated_at": datetime.utcnow().isoformat(),
-        }).eq("user_id", user_id).execute()
+        }).eq("id", existing["id"]).execute()
         
         if not update_result.data:
             raise HTTPException(status_code=500, detail="Failed to store API key")
@@ -251,16 +270,16 @@ async def store_api_key(service: str, request: APIKeyRequest, user_id: str = "de
 
 
 @router.delete("/keys/{service}")
-async def delete_api_key(service: str, user_id: str = "default"):
+async def delete_api_key(service: str, user_id: str = Depends(get_current_user)):
     """Delete an API key for a service"""
     try:
         sb = get_supabase()
-        result = sb.table("user_settings").select("api_keys").eq("user_id", user_id).execute()
-        
-        if not result.data:
+        existing = _get_settings_row(sb, user_id)
+
+        if not existing:
             raise HTTPException(status_code=404, detail="Settings not found")
-        
-        api_keys = result.data[0].get("api_keys", {})
+
+        api_keys = existing.get("api_keys", {})
         
         if service not in api_keys:
             raise HTTPException(status_code=404, detail=f"No API key found for service: {service}")
@@ -271,7 +290,7 @@ async def delete_api_key(service: str, user_id: str = "default"):
         update_result = sb.table("user_settings").update({
             "api_keys": api_keys,
             "updated_at": datetime.utcnow().isoformat(),
-        }).eq("user_id", user_id).execute()
+        }).eq("id", existing["id"]).execute()
         
         logger.info(f"Deleted API key for service: {service}, user: {user_id}")
         

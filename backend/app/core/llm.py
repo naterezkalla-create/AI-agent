@@ -21,6 +21,13 @@ def _get_api_key(user_id: str = "default") -> str:
                 return decrypt_api_key(encrypted_key)
             except Exception as e:
                 logger.warning(f"Failed to decrypt user API key for {user_id}, falling back to default: {str(e)}")
+        fallback = sb.table("user_settings").select("api_keys").eq("user_id_fk", user_id).execute()
+        if fallback.data and fallback.data[0].get("api_keys", {}).get("anthropic"):
+            encrypted_key = fallback.data[0]["api_keys"]["anthropic"]
+            try:
+                return decrypt_api_key(encrypted_key)
+            except Exception as e:
+                logger.warning(f"Failed to decrypt user API key for {user_id}, falling back to default: {str(e)}")
     except Exception as e:
         logger.warning(f"Failed to retrieve user API key for {user_id}: {str(e)}")
     

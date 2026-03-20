@@ -24,8 +24,8 @@ class SendEmailTool(BaseTool):
             "required": ["to", "subject", "body"],
         }
 
-    async def execute(self, to: str, subject: str, body: str) -> str:
-        return await send_email("default", to, subject, body)
+    async def execute(self, to: str, subject: str, body: str, user_id: str = "default") -> str:
+        return await send_email(user_id, to, subject, body)
 
 
 class ListInboxTool(BaseTool):
@@ -54,8 +54,8 @@ class ListInboxTool(BaseTool):
             },
         }
 
-    async def execute(self, max_results: int = 10, query: str = "") -> str:
-        return await list_inbox("default", max_results, query)
+    async def execute(self, max_results: int = 10, query: str = "", user_id: str = "default") -> str:
+        return await list_inbox(user_id, max_results, query)
 
 
 class CreateCalendarEventTool(BaseTool):
@@ -81,8 +81,8 @@ class CreateCalendarEventTool(BaseTool):
             "required": ["title", "start_time", "end_time"],
         }
 
-    async def execute(self, title: str, start_time: str, end_time: str, description: str = "", location: str = "") -> str:
-        return await create_event("default", title, start_time, end_time, description, location)
+    async def execute(self, title: str, start_time: str, end_time: str, description: str = "", location: str = "", user_id: str = "default") -> str:
+        return await create_event(user_id, title, start_time, end_time, description, location)
 
 
 class ListCalendarEventsTool(BaseTool):
@@ -111,5 +111,5 @@ class ListCalendarEventsTool(BaseTool):
             },
         }
 
-    async def execute(self, max_results: int = 10, time_min: str = "") -> str:
-        return await list_events("default", max_results, time_min)
+    async def execute(self, max_results: int = 10, time_min: str = "", user_id: str = "default") -> str:
+        return await list_events(user_id, max_results, time_min)

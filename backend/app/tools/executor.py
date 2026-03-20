@@ -1,13 +1,14 @@
 import json
 import logging
 import traceback
+import inspect
 from typing import Any, Dict
 from app.tools import registry
 
 logger = logging.getLogger(__name__)
 
 
-async def execute_tool(name: str, input_data: dict) -> Dict[str, Any]:
+async def execute_tool(name: str, input_data: dict, *, user_id: str = "default") -> Dict[str, Any]:
     """
     Execute a tool by name with given input.
     Returns a dict with 'result' or 'error' key.
@@ -20,7 +21,10 @@ async def execute_tool(name: str, input_data: dict) -> Dict[str, Any]:
 
     try:
         logger.info(f"Executing tool: {name} with input: {json.dumps(input_data)[:500]}")
-        result = await tool.execute(**input_data)
+        execute_kwargs = dict(input_data)
+        if "user_id" in inspect.signature(tool.execute).parameters:
+            execute_kwargs["user_id"] = user_id
+        result = await tool.execute(**execute_kwargs)
 
         # Ensure result is serializable
         if isinstance(result, (dict, list)):

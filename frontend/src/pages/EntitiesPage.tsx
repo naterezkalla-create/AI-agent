@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getEntities, createEntity, updateEntity, deleteEntity } from '../lib/api';
+import { getEntities, createEntity, updateEntity, deleteEntity, subscribeToRealtime } from '../lib/api';
 import { Plus, Trash2, Search, Edit } from 'lucide-react';
 import EntityForm from '../components/EntityForm';
 import { useToast } from '../components/ToastContainer';
@@ -15,6 +15,14 @@ export default function EntitiesPage() {
 
   useEffect(() => {
     loadEntities();
+  }, []);
+
+  useEffect(() => {
+    return subscribeToRealtime(['entities'], (event) => {
+      if (event.type === 'entities.changed') {
+        void loadEntities();
+      }
+    });
   }, []);
 
   const loadEntities = async () => {
@@ -33,7 +41,7 @@ export default function EntitiesPage() {
     setIsLoading(true);
     try {
       if (editingEntity) {
-        await updateEntity(editingEntity.id, data);
+        await updateEntity(editingEntity.id, data.data);
         toast.toast('Entity updated successfully', 'success');
       } else {
         await createEntity(data.type, data.data);

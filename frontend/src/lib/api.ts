@@ -1,10 +1,30 @@
+import type { RealtimeEvent } from '../types';
+
 const API_BASE = '';
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+function getAuthToken(): string | null {
+  return localStorage.getItem('auth_token');
+}
+
+function withAuth(options: RequestInit = {}): RequestInit {
+  const token = getAuthToken();
+  return {
     ...options,
-  });
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers ?? {}),
+    },
+  };
+}
+
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(
+    `${API_BASE}${path}`,
+    withAuth({
+      headers: { 'Content-Type': 'application/json' },
+      ...options,
+    }),
+  );
   if (!res.ok) {
     const error = await res.text();
     throw new Error(`API error ${res.status}: ${error}`);
@@ -37,9 +57,11 @@ export async function streamMessage(
   onEvent: (event: ChatStreamEvent) => void,
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/api/chat/stream`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, conversation_id: conversationId }),
+    ...withAuth({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, conversation_id: conversationId }),
+    }),
   });
 
   if (!res.ok) {
@@ -117,10 +139,13 @@ export const deleteEntity = (id: string) =>
 // Automations
 export const getAutomations = () => request<unknown[]>('/automations');
 
-export const createAutomation = (name: string, cronExpression: string, prompt: string) =>
+export const getAutomationRuns = (automationId?: string) =>
+  request<unknown[]>(`/automations/runs${automationId ? `?automation_id=${automationId}` : ''}`);
+
+export const createAutomation = (payload: Record<string, unknown>) =>
   request<unknown>('/automations', {
     method: 'POST',
-    body: JSON.stringify({ name, cron_expression: cronExpression, prompt }),
+    body: JSON.stringify(payload),
   });
 
 export const updateAutomation = (id: string, updates: Record<string, unknown>) =>
@@ -150,6 +175,8 @@ export const deleteMemoryNote = (key: string) =>
 // Integrations
 export const getIntegrations = () => request<unknown[]>('/integrations');
 
+export const getIntegrationProviders = () => request<unknown[]>('/integrations/providers');
+
 export const deleteIntegration = (provider: string) =>
   request<unknown>(`/integrations/${provider}`, { method: 'DELETE' });
 
@@ -159,3 +186,58 @@ export const getSystemStatus = () =>
 
 export const getTools = () =>
   request<{ name: string; description: string }[]>('/api/admin/tools');
+
+export const getIssues = (status?: string) =>
+  request<unknown[]>(`/api/issues${status ? `?status=${encodeURIComponent(status)}` : ''}`);
+
+export const scanIssues = () =>
+  request<{ issues: unknown[]; suggestions: unknown[] }>('/api/issues/scan', {
+    method: 'POST',
+  });
+
+export const updateIssueStatus = (issueId: string, status: 'open' | 'resolved' | 'dismissed') =>
+  request<unknown>(`/api/issues/${issueId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+
+export const getAutomationSuggestions = (status?: string) =>
+  request<unknown[]>(`/api/issues/suggestions${status ? `?status=${encodeURIComponent(status)}` : ''}`);
+
+export const generateAutomationSuggestions = () =>
+  request<unknown[]>('/api/issues/suggestions/generate', {
+    method: 'POST',
+  });
+
+export const approveAutomationSuggestion = (suggestionId: string) =>
+  request<unknown>(`/api/issues/suggestions/${suggestionId}/approve`, {
+    method: 'POST',
+  });
+
+export const rejectAutomationSuggestion = (suggestionId: string) =>
+  request<unknown>(`/api/issues/suggestions/${suggestionId}/reject`, {
+    method: 'POST',
+  });
+
+export function subscribeToRealtime(
+  topics: string[],
+  onEvent: (event: RealtimeEvent) => void,
+): () => void {
+  const params = new URLSearchParams();
+  if (topics.length > 0) {
+    params.set('topics', topics.join(','));
+  }
+  const token = getAuthToken();
+  if (token) {
+    params.set('token', token);
+  }
+
+  const source = new EventSource(`/api/realtime/events?${params.toString()}`);
+  source.onmessage = (message) => {
+    onEvent(JSON.parse(message.data) as RealtimeEvent);
+  };
+
+  return () => {
+    source.close();
+  };
+}

@@ -1,20 +1,33 @@
 import { useState, useEffect } from 'react';
-import { getAutomations, createAutomation, updateAutomation, deleteAutomation } from '../lib/api';
+import { getAutomations, getAutomationRuns, createAutomation, updateAutomation, deleteAutomation, subscribeToRealtime } from '../lib/api';
 import { Plus, Trash2, Play, Pause, Edit } from 'lucide-react';
 import AutomationForm from '../components/AutomationForm';
 import { useToast } from '../components/ToastContainer';
-import type { Automation } from '../types';
+import type { Automation, AutomationRun } from '../types';
 
 export default function AutomationsPage() {
   const [automations, setAutomations] = useState<Automation[]>([]);
+  const [runs, setRuns] = useState<AutomationRun[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingAuto, setEditingAuto] = useState<Automation | undefined>();
   const [isLoading, setIsLoading] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
-    loadAutomations();
+    void loadPageData();
   }, []);
+
+  useEffect(() => {
+    return subscribeToRealtime(['automations', 'automation_runs'], (event) => {
+      if (event.type === 'automations.changed' || event.type === 'automation_runs.changed') {
+        void loadPageData();
+      }
+    });
+  }, []);
+
+  const loadPageData = async () => {
+    await Promise.all([loadAutomations(), loadRuns()]);
+  };
 
   const loadAutomations = async () => {
     try {
@@ -25,10 +38,23 @@ export default function AutomationsPage() {
     }
   };
 
+  const loadRuns = async () => {
+    try {
+      const data = await getAutomationRuns() as AutomationRun[];
+      setRuns(data);
+    } catch {
+      // API may not be available
+    }
+  };
+
   const handleCreateOrUpdate = async (data: {
     name: string;
     cron_expression: string;
     prompt: string;
+    trigger_type: 'cron' | 'event';
+    trigger_config: Record<string, unknown>;
+    max_retries: number;
+    retry_delay_seconds: number;
   }) => {
     setIsLoading(true);
     try {
@@ -36,12 +62,12 @@ export default function AutomationsPage() {
         await updateAutomation(editingAuto.id, data);
         toast.toast('Automation updated successfully', 'success');
       } else {
-        await createAutomation(data.name, data.cron_expression, data.prompt);
+        await createAutomation(data);
         toast.toast('Automation created successfully', 'success');
       }
       setShowForm(false);
       setEditingAuto(undefined);
-      loadAutomations();
+      void loadPageData();
     } catch (err) {
       toast.toast(err instanceof Error ? err.message : 'Failed to save automation', 'error');
     } finally {
@@ -53,7 +79,7 @@ export default function AutomationsPage() {
     try {
       await updateAutomation(auto.id, { enabled: !auto.enabled });
       toast.toast(auto.enabled ? 'Automation paused' : 'Automation enabled', 'info');
-      loadAutomations();
+      void loadPageData();
     } catch (err) {
       toast.toast('Failed to toggle automation', 'error');
     }
@@ -64,7 +90,7 @@ export default function AutomationsPage() {
     try {
       await deleteAutomation(id);
       toast.toast('Automation deleted', 'success');
-      loadAutomations();
+      void loadPageData();
     } catch (err) {
       toast.toast('Failed to delete automation', 'error');
     }
@@ -92,19 +118,48 @@ export default function AutomationsPage() {
 
       <div className="flex-1 overflow-y-auto p-6">
         <div className="space-y-3 max-w-4xl">
-          {automations.map((auto) => (
-            <div
-              key={auto.id}
-              className="bg-gray-900 border border-gray-800 rounded-lg p-4 hover:border-gray-700 transition-colors"
-            >
-              <div className="flex items-start justify-between">
+          {automations.map((auto) => {
+            const latestRun = runs.find((run) => run.automation_id === auto.id);
+
+            return (
+              <div
+                key={auto.id}
+                className="bg-gray-900 border border-gray-800 rounded-lg p-4 hover:border-gray-700 transition-colors"
+              >
+                <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <h3 className="font-medium text-white">{auto.name}</h3>
-                  <p className="text-sm text-gray-400 font-mono mt-1">{auto.cron_expression}</p>
+                  <p className="text-sm text-gray-400 font-mono mt-1">
+                    {auto.trigger_type === 'event'
+                      ? ((auto.trigger_config?.event_types as string[] | undefined)?.join(', ') ?? 'event trigger')
+                      : auto.cron_expression}
+                  </p>
                   <p className="text-sm text-gray-500 mt-2 line-clamp-2">{auto.prompt}</p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <span className="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-300">
+                      {auto.trigger_type === 'event' ? 'Event-driven' : 'Scheduled'}
+                    </span>
+                    {auto.last_status && (
+                      <span className={`text-xs px-2 py-0.5 rounded ${
+                        auto.last_status === 'succeeded'
+                          ? 'bg-green-600/20 text-green-400'
+                          : auto.last_status === 'retry_scheduled'
+                            ? 'bg-yellow-600/20 text-yellow-300'
+                            : 'bg-red-600/20 text-red-400'
+                      }`}>
+                        {auto.last_status.replace('_', ' ')}
+                      </span>
+                    )}
+                  </div>
                   {auto.last_run && (
                     <p className="text-xs text-gray-600 mt-2">
                       Last run: {new Date(auto.last_run).toLocaleString()}
+                    </p>
+                  )}
+                  {latestRun && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Latest run: {latestRun.status.replace('_', ' ')}
+                      {latestRun.error ? ` — ${latestRun.error}` : ''}
                     </p>
                   )}
                 </div>
@@ -136,14 +191,57 @@ export default function AutomationsPage() {
                   </button>
                 </div>
               </div>
-            </div>
-          ))}
+              </div>
+            );
+          })}
 
           {automations.length === 0 && (
             <div className="text-center text-gray-600 mt-16">
               <p className="text-3xl mb-4">⏰</p>
               <p>No automations yet.</p>
               <p className="text-sm mt-1">Create a CRON job to have the agent act automatically.</p>
+            </div>
+          )}
+
+          {runs.length > 0 && (
+            <div className="mt-8">
+              <h3 className="text-sm text-gray-500 uppercase mb-3">Recent Runs</h3>
+              <div className="space-y-2">
+                {runs.slice(0, 8).map((run) => (
+                  <div key={run.id} className="bg-gray-900/60 border border-gray-800 rounded-lg px-4 py-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm text-white">
+                          {automations.find((auto) => auto.id === run.automation_id)?.name ?? 'Automation run'}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Trigger: {run.trigger_type}
+                          {run.attempt > 0 ? ` • retry ${run.attempt}` : ''}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-xs ${
+                          run.status === 'succeeded'
+                            ? 'text-green-400'
+                            : run.status === 'retry_scheduled'
+                              ? 'text-yellow-300'
+                              : run.status === 'running'
+                                ? 'text-blue-400'
+                                : 'text-red-400'
+                        }`}>
+                          {run.status.replace('_', ' ')}
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          {new Date(run.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    {run.error && (
+                      <p className="text-xs text-red-400 mt-2">{run.error}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

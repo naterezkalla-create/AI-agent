@@ -4,6 +4,7 @@ import logging
 from fastapi import Request, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.config import get_settings
+from app.api.deps import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,6 @@ PUBLIC_PREFIXES = [
     "/redoc",
     "/webhook/telegram",
     "/integrations/google/callback",
-    "/api/",  # All /api/* endpoints
     "/entities",
     "/ws/",  # All WebSocket connections
 ]

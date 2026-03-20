@@ -7,6 +7,7 @@ from urllib.parse import urlencode
 from cryptography.fernet import Fernet
 import httpx
 from app.config import get_settings
+from app.integrations.providers import list_provider_definitions
 from app.memory.supabase_client import get_supabase
 
 logger = logging.getLogger(__name__)
@@ -41,7 +42,7 @@ def _decrypt(value: str) -> str:
     return _get_fernet().decrypt(value.encode()).decode()
 
 
-def get_authorization_url(provider: str = "google", scopes: Optional[List[str]] = None) -> str:
+def get_authorization_url(provider: str = "google", scopes: Optional[List[str]] = None, state: Optional[str] = None) -> str:
     """Generate OAuth2 authorization URL."""
     settings = get_settings()
 
@@ -67,13 +68,15 @@ def get_authorization_url(provider: str = "google", scopes: Optional[List[str]] 
         "access_type": "offline",
         "prompt": "consent",
     }
+    if state:
+        params["state"] = state
     query = urlencode(params)
     url = f"{GOOGLE_AUTH_URL}?{query}"
     logger.info(f"Generated OAuth URL for {provider}")
     return url
 
 
-async def exchange_code(code: str, provider: str = "google") -> dict:
+async def exchange_code(code: str, provider: str = "google", user_id: str = "default") -> dict:
     """Exchange authorization code for access/refresh tokens."""
     settings = get_settings()
 
@@ -96,17 +99,21 @@ async def exchange_code(code: str, provider: str = "google") -> dict:
     now = datetime.now(timezone.utc).isoformat()
 
     token_row = {
-        "user_id": "default",
+        "user_id": user_id,
         "provider": provider,
         "access_token_enc": _encrypt(tokens["access_token"]),
         "refresh_token_enc": _encrypt(tokens.get("refresh_token", "")),
         "scopes": tokens.get("scope", ""),
         "expires_at": now,  # Will be updated properly based on expires_in
         "created_at": now,
+        "status": "connected",
+        "last_checked_at": now,
+        "last_sync_at": now,
+        "last_error": None,
     }
 
     # Upsert by (user_id, provider)
-    existing = sb.table("integrations").select("id").eq("user_id", "default").eq("provider", provider).execute()
+    existing = sb.table("integrations").select("id").eq("user_id", user_id).eq("provider", provider).execute()
     if existing.data:
         sb.table("integrations").update(token_row).eq("id", existing.data[0]["id"]).execute()
     else:
@@ -186,10 +193,11 @@ async def list_integrations(user_id: str) -> List[dict]:
             "created_at": row["created_at"],
             "status": status,
             "last_checked_at": datetime.now(timezone.utc).isoformat(),
-            "last_sync_at": row.get("created_at"),
-            "last_error": last_error,
+            "last_sync_at": row.get("last_sync_at") or row.get("created_at"),
+            "last_error": row.get("last_error") or last_error,
             "has_refresh_token": bool(row.get("refresh_token_enc")),
             "capabilities": capabilities,
+            "config": row.get("config") or {},
         })
 
     return integrations
@@ -199,3 +207,24 @@ async def delete_integration(user_id: str, provider: str) -> bool:
     sb = get_supabase()
     result = sb.table("integrations").delete().eq("user_id", user_id).eq("provider", provider).execute()
     return len(result.data) > 0
+
+
+async def list_provider_status(user_id: str) -> List[dict]:
+    """Return registry-backed provider metadata merged with connection status."""
+    connected = {item["provider"]: item for item in await list_integrations(user_id)}
+    providers = []
+
+    for provider in list_provider_definitions():
+        connection = connected.get(provider["id"])
+        providers.append(
+            {
+                **provider,
+                "connected": bool(connection),
+                "integration": connection,
+                "status": connection.get("status") if connection else ("configured" if provider["is_env_ready"] else "not_configured"),
+                "last_error": connection.get("last_error") if connection else None,
+                "last_sync_at": connection.get("last_sync_at") if connection else None,
+            }
+        )
+
+    return providers

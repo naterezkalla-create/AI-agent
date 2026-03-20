@@ -27,6 +27,10 @@ class AutomationCreate(BaseModel):
     prompt: str
     enabled: bool = True
     user_id: str = "default"
+    trigger_type: str = "cron"
+    trigger_config: Dict[str, Any] = {}
+    max_retries: int = 2
+    retry_delay_seconds: int = 60
 
 
 class AutomationUpdate(BaseModel):
@@ -35,6 +39,10 @@ class AutomationUpdate(BaseModel):
     prompt: Optional[str] = None
     enabled: Optional[bool] = None
     user_id: Optional[str] = None
+    trigger_type: Optional[str] = None
+    trigger_config: Optional[Dict[str, Any]] = None
+    max_retries: Optional[int] = None
+    retry_delay_seconds: Optional[int] = None
 
 
 class MemoryNoteCreate(BaseModel):

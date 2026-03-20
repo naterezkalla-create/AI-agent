@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getMemoryNotes, createMemoryNote, updateMemoryNote, deleteMemoryNote } from '../lib/api';
+import { getMemoryNotes, createMemoryNote, updateMemoryNote, deleteMemoryNote, subscribeToRealtime } from '../lib/api';
 import { Plus, Trash2, Brain, CheckCircle2, Archive } from 'lucide-react';
 import type { MemoryNote } from '../types';
 
@@ -14,6 +14,14 @@ export default function MemoryPage() {
 
   useEffect(() => {
     loadNotes();
+  }, []);
+
+  useEffect(() => {
+    return subscribeToRealtime(['memory'], (event) => {
+      if (event.type === 'memory.changed') {
+        void loadNotes();
+      }
+    });
   }, []);
 
   const loadNotes = async () => {

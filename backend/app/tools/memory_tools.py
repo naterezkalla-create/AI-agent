@@ -37,8 +37,8 @@ class SaveMemoryTool(BaseTool):
             "required": ["category", "key", "content"],
         }
 
-    async def execute(self, category: str, key: str, content: str, confidence: float = 0.8) -> str:
-        await save_memory_note("default", category, key, content, confidence=confidence, source="agent")
+    async def execute(self, category: str, key: str, content: str, confidence: float = 0.8, user_id: str = "default") -> str:
+        await save_memory_note(user_id, category, key, content, confidence=confidence, source="agent")
         return f"Saved to memory [{category}] {key}: {content}"
 
 
@@ -64,8 +64,8 @@ class SearchMemoryTool(BaseTool):
             "required": ["query"],
         }
 
-    async def execute(self, query: str) -> str:
-        results = await search_memory_notes("default", query)
+    async def execute(self, query: str, user_id: str = "default") -> str:
+        results = await search_memory_notes(user_id, query)
         if not results:
             return "No matching memories found."
 

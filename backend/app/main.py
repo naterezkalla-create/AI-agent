@@ -18,6 +18,8 @@ from app.api.admin import router as admin_router
 from app.api.costs import router as costs_router
 from app.api.settings import router as settings_router
 from app.api.users import router as users_router
+from app.api.realtime import router as realtime_router
+from app.issues.router import router as issues_router
 from app.entities.router import router as entities_router
 from app.automations.router import router as automations_router
 from app.integrations.router import router as integrations_router
@@ -115,6 +117,9 @@ async def lifespan(app: FastAPI):
             from app.automations.scheduler import start_scheduler, load_automations, stop_scheduler
             start_scheduler()
             await load_automations()
+            from app.issues.service import start_issue_monitoring, scan_all_users
+            start_issue_monitoring()
+            await scan_all_users()
             logger.info("Scheduler started and automations loaded")
         except Exception as e:
             logger.warning(f"Failed to start scheduler: {e}")
@@ -186,6 +191,8 @@ def create_app() -> FastAPI:
     app.include_router(costs_router)
     app.include_router(settings_router)
     app.include_router(users_router)
+    app.include_router(realtime_router)
+    app.include_router(issues_router)
     app.include_router(entities_router)
     app.include_router(automations_router)
     app.include_router(integrations_router)

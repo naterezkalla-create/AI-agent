@@ -1,19 +1,41 @@
 import { useState, useEffect } from 'react';
-import { getIntegrations, deleteIntegration } from '../lib/api';
+import { getIntegrations, getIntegrationProviders, deleteIntegration, subscribeToRealtime } from '../lib/api';
 import { Plug, Trash2, ExternalLink, RefreshCw, ShieldAlert, CheckCircle2 } from 'lucide-react';
-import type { Integration } from '../types';
+import type { Integration, IntegrationProvider } from '../types';
 
 export default function IntegrationsPage() {
   const [integrations, setIntegrations] = useState<Integration[]>([]);
+  const [providers, setProviders] = useState<IntegrationProvider[]>([]);
 
   useEffect(() => {
-    loadIntegrations();
+    void loadPageData();
   }, []);
+
+  useEffect(() => {
+    return subscribeToRealtime(['integrations'], (event) => {
+      if (event.type === 'integrations.changed') {
+        void loadPageData();
+      }
+    });
+  }, []);
+
+  const loadPageData = async () => {
+    await Promise.all([loadIntegrations(), loadProviders()]);
+  };
 
   const loadIntegrations = async () => {
     try {
       const data = await getIntegrations() as Integration[];
       setIntegrations(data);
+    } catch {
+      // API may not be available
+    }
+  };
+
+  const loadProviders = async () => {
+    try {
+      const data = await getIntegrationProviders() as IntegrationProvider[];
+      setProviders(data);
     } catch {
       // API may not be available
     }
@@ -26,21 +48,25 @@ export default function IntegrationsPage() {
   const handleDisconnect = async (provider: string) => {
     if (!confirm(`Disconnect ${provider}?`)) return;
     await deleteIntegration(provider);
-    loadIntegrations();
+    void loadPageData();
   };
 
   const isConnected = (provider: string) =>
     integrations.some((i) => i.provider === provider);
 
-  const availableProviders = [
-    {
-      id: 'google',
-      name: 'Google',
-      description: 'Gmail, Google Calendar, Google Sheets',
-      icon: '🔗',
-      recommendedScopes: ['Gmail', 'Calendar'],
-    },
-  ];
+  const providerIcons: Record<string, string> = {
+    google: '🔗',
+    telegram: '✈️',
+    apify: '🕷️',
+    openai: '🧠',
+    anthropic: '🪶',
+  };
+
+  const getActionLabel = (provider: IntegrationProvider) => {
+    if (provider.connection_mode === 'oauth') return 'Connect';
+    if (provider.connection_mode === 'managed') return 'Configured by env';
+    return 'Use in Settings';
+  };
 
   const getStatusMeta = (integration?: Integration) => {
     switch (integration?.status) {
@@ -76,7 +102,7 @@ export default function IntegrationsPage() {
 
       <div className="flex-1 overflow-y-auto p-6">
         <div className="space-y-4 max-w-2xl">
-          {availableProviders.map((provider) => {
+          {providers.map((provider) => {
             const connected = isConnected(provider.id);
             const integration = integrations.find((i) => i.provider === provider.id);
             const statusMeta = getStatusMeta(integration);
@@ -88,12 +114,12 @@ export default function IntegrationsPage() {
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-3">
-                    <span className="text-2xl">{provider.icon}</span>
+                    <span className="text-2xl">{providerIcons[provider.id] ?? '🔌'}</span>
                     <div>
                       <h3 className="font-medium">{provider.name}</h3>
                       <p className="text-sm text-gray-500">{provider.description}</p>
                       <div className="flex flex-wrap gap-2 mt-3">
-                        {provider.recommendedScopes.map((scope) => (
+                        {provider.capabilities.map((scope) => (
                           <span
                             key={scope}
                             className="px-2 py-1 text-xs rounded-full bg-gray-800 text-gray-300 border border-gray-700"
@@ -123,9 +149,26 @@ export default function IntegrationsPage() {
                               Active: {integration.capabilities.join(', ')}
                             </p>
                           )}
+                          <p className="text-xs text-gray-500">
+                            Mode: {provider.connection_mode.replace('_', ' ')}
+                          </p>
                           {integration.last_error && (
                             <p className="text-xs text-red-400">
                               {integration.last_error}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {!connected && (
+                        <div className="mt-3 text-xs text-gray-500 space-y-1">
+                          {provider.required_env.length > 0 && (
+                            <p>
+                              Requires env: {provider.required_env.join(', ')}
+                            </p>
+                          )}
+                          {provider.user_secret_keys.length > 0 && (
+                            <p>
+                              Supports user keys: {provider.user_secret_keys.join(', ')}
                             </p>
                           )}
                         </div>
@@ -152,10 +195,11 @@ export default function IntegrationsPage() {
                     </div>
                   ) : (
                     <button
-                      onClick={() => handleConnect(provider.id)}
-                      className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
+                      onClick={() => provider.connection_mode === 'oauth' && handleConnect(provider.id)}
+                      disabled={provider.connection_mode !== 'oauth'}
+                      className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-lg text-sm transition-colors"
                     >
-                      <ExternalLink size={14} /> Connect
+                      <ExternalLink size={14} /> {getActionLabel(provider)}
                     </button>
                   )}
                 </div>

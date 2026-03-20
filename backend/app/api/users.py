@@ -14,27 +14,12 @@ from app.models.user import (
 from app.memory.supabase_client import get_supabase
 from app.services.email import get_email_service
 from app.config import get_settings
+from app.api.deps import get_current_user
 from datetime import datetime, timedelta
 import uuid
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 limiter = Limiter(key_func=get_remote_address)
-security = HTTPBearer()
-
-
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
-    """Extract user_id from JWT token in Authorization header."""
-    token = credentials.credentials
-    user_id = decode_token(token)
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return user_id
-
-
 @router.post("/register", response_model=TokenResponse)
 @limiter.limit("5/minute")
 async def register(request: Request, user_data: UserCreate):
@@ -80,9 +65,10 @@ async def register(request: Request, user_data: UserCreate):
     
     # Create default user_settings record
     supabase.table("user_settings").insert({
+        "user_id": user_id,
         "user_id_fk": user_id,
         "system_prompt": "",
-        "enabled_integrations": {},
+        "enabled_integrations": [],
         "preferences": {},
         "api_keys": {},
         "created_at": datetime.utcnow().isoformat(),

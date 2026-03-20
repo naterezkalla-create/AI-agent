@@ -30,11 +30,11 @@ class CreateEntityTool(BaseTool):
             "required": ["entity_type", "data"],
         }
 
-    async def execute(self, entity_type: str, data: dict) -> str:
+    async def execute(self, entity_type: str, data: dict, user_id: str = "default") -> str:
         sb = get_supabase()
         now = datetime.now(timezone.utc).isoformat()
         result = sb.table("entities").insert({
-            "user_id": "default",
+            "user_id": user_id,
             "type": entity_type,
             "data": data,
             "created_at": now,
@@ -75,9 +75,9 @@ class SearchEntitiesTool(BaseTool):
             },
         }
 
-    async def execute(self, entity_type: str = None, query: str = None, limit: int = 20) -> list:
+    async def execute(self, entity_type: str = None, query: str = None, limit: int = 20, user_id: str = "default") -> list:
         sb = get_supabase()
-        q = sb.table("entities").select("*").eq("user_id", "default")
+        q = sb.table("entities").select("*").eq("user_id", user_id)
 
         if entity_type:
             q = q.eq("type", entity_type)
@@ -125,11 +125,11 @@ class UpdateEntityTool(BaseTool):
             "required": ["entity_id", "data"],
         }
 
-    async def execute(self, entity_id: str, data: dict) -> str:
+    async def execute(self, entity_id: str, data: dict, user_id: str = "default") -> str:
         sb = get_supabase()
 
         # Fetch existing
-        existing = sb.table("entities").select("*").eq("id", entity_id).execute()
+        existing = sb.table("entities").select("*").eq("id", entity_id).eq("user_id", user_id).execute()
         if not existing.data:
             return f"Entity not found: {entity_id}"
 
@@ -139,7 +139,7 @@ class UpdateEntityTool(BaseTool):
         sb.table("entities").update({
             "data": merged,
             "updated_at": now,
-        }).eq("id", entity_id).execute()
+        }).eq("id", entity_id).eq("user_id", user_id).execute()
 
         return f"Updated entity {entity_id}: {json.dumps(merged, default=str)}"
 
@@ -166,9 +166,9 @@ class DeleteEntityTool(BaseTool):
             "required": ["entity_id"],
         }
 
-    async def execute(self, entity_id: str) -> str:
+    async def execute(self, entity_id: str, user_id: str = "default") -> str:
         sb = get_supabase()
-        result = sb.table("entities").delete().eq("id", entity_id).execute()
+        result = sb.table("entities").delete().eq("id", entity_id).eq("user_id", user_id).execute()
         if result.data:
             return f"Deleted entity {entity_id}"
         return f"Entity not found: {entity_id}"
