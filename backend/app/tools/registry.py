@@ -52,6 +52,11 @@ def register_all_tools() -> None:
         NotionCreatePageTool,
         ApifyRunActorTool,
     )
+    from app.tools.external_action_tools import (
+        RequestRetellVoiceAgentTool,
+        ListExternalActionRequestsTool,
+        ListExternalResourcesTool,
+    )
     from app.tools.memory_tools import SaveMemoryTool, SearchMemoryTool
 
     tools = [
@@ -74,6 +79,9 @@ def register_all_tools() -> None:
         NotionSearchTool(),
         NotionCreatePageTool(),
         ApifyRunActorTool(),
+        RequestRetellVoiceAgentTool(),
+        ListExternalActionRequestsTool(),
+        ListExternalResourcesTool(),
         SaveMemoryTool(),
         SearchMemoryTool(),
     ]

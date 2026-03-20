@@ -82,7 +82,7 @@ PROVIDER_REGISTRY: dict[str, dict[str, Any]] = {
         "required_env": [],
         "user_secret_keys": ["retell"],
         "capabilities": ["voice_agents.create", "voice_agents.read", "calls.create"],
-        "tools": ["retell_create_voice_agent", "retell_list_voice_agents"],
+        "tools": ["request_retell_voice_agent", "retell_create_voice_agent"],
         "supports_realtime": False,
     },
     "custom_webhook": {
