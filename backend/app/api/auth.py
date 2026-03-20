@@ -4,23 +4,27 @@ import logging
 from fastapi import Request, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.config import get_settings
-from app.api.deps import get_current_user
 
 logger = logging.getLogger(__name__)
 
-# Paths that don't require auth (prefix matching)
-PUBLIC_PREFIXES = [
+# Exact paths that don't require auth.
+PUBLIC_PATHS = {
     "/",
     "/health",
+    "/ready",
     "/docs",
     "/openapi.json",
     "/redoc",
     "/webhook/telegram",
     "/integrations/google/callback",
     "/integrations/webhook/custom",
-    "/entities",
-    "/ws/",  # All WebSocket connections
-]
+}
+
+# Prefixes that don't require auth.
+PUBLIC_PREFIXES = (
+    "/api/auth/",
+    "/ws/",
+)
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -34,8 +38,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         # Skip auth for public paths (prefix matching)
         path = request.url.path
+        if path in PUBLIC_PATHS:
+            return await call_next(request)
         for prefix in PUBLIC_PREFIXES:
-            if path == prefix or path.startswith(prefix):
+            if path.startswith(prefix):
                 return await call_next(request)
 
         # Check Authorization header

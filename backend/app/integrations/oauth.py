@@ -372,6 +372,14 @@ async def get_access_token(user_id: str, provider: str = "google") -> Optional[s
     return access_token
 
 
+async def get_provider_secret(user_id: str, provider: str) -> Optional[str]:
+    """Return the decrypted stored secret for a provider."""
+    row = _get_integration_row(user_id, provider)
+    if not row or not row.get("access_token_enc"):
+        return None
+    return _decrypt(row["access_token_enc"])
+
+
 async def list_integrations(user_id: str) -> List[dict]:
     sb = get_supabase()
     result = sb.table("integrations").select("*").eq("user_id", user_id).execute()

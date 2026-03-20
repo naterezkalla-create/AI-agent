@@ -38,7 +38,7 @@ PROVIDER_REGISTRY: dict[str, dict[str, Any]] = {
         "required_env": [],
         "user_secret_keys": ["github"],
         "capabilities": ["repos.read", "issues.read", "pull_requests.read"],
-        "tools": ["github_list_repos"],
+        "tools": ["github_list_repos", "github_list_issues"],
         "supports_realtime": False,
     },
     "notion": {
@@ -49,7 +49,7 @@ PROVIDER_REGISTRY: dict[str, dict[str, Any]] = {
         "required_env": [],
         "user_secret_keys": ["notion"],
         "capabilities": ["pages.read", "pages.write", "databases.read"],
-        "tools": ["notion_search"],
+        "tools": ["notion_search", "notion_create_page"],
         "supports_realtime": False,
     },
     "telegram": {

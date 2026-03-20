@@ -114,6 +114,25 @@ create index if not exists idx_automation_runs_automation_id on automation_runs(
 create index if not exists idx_automation_runs_user_created on automation_runs(user_id, created_at desc);
 
 -- -------------------------------------------
+-- Cost Logs
+-- -------------------------------------------
+create table if not exists cost_logs (
+    id uuid primary key default uuid_generate_v4(),
+    user_id text not null default 'default',
+    service text not null,
+    operation text not null,
+    input_tokens integer not null default 0,
+    output_tokens integer not null default 0,
+    total_tokens integer not null default 0,
+    cost double precision not null default 0,
+    metadata jsonb not null default '{}',
+    created_at timestamptz not null default now()
+);
+
+create index if not exists idx_cost_logs_user_created on cost_logs(user_id, created_at desc);
+create index if not exists idx_cost_logs_service_created on cost_logs(service, created_at desc);
+
+-- -------------------------------------------
 -- Issues & Automation Suggestions
 -- -------------------------------------------
 create table if not exists issues (

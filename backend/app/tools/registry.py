@@ -45,6 +45,12 @@ def register_all_tools() -> None:
         ListInboxTool,
         CreateCalendarEventTool,
         ListCalendarEventsTool,
+        SlackPostMessageTool,
+        GitHubListReposTool,
+        GitHubListIssuesTool,
+        NotionSearchTool,
+        NotionCreatePageTool,
+        ApifyRunActorTool,
     )
     from app.tools.memory_tools import SaveMemoryTool, SearchMemoryTool
 
@@ -62,6 +68,12 @@ def register_all_tools() -> None:
         ListInboxTool(),
         CreateCalendarEventTool(),
         ListCalendarEventsTool(),
+        SlackPostMessageTool(),
+        GitHubListReposTool(),
+        GitHubListIssuesTool(),
+        NotionSearchTool(),
+        NotionCreatePageTool(),
+        ApifyRunActorTool(),
         SaveMemoryTool(),
         SearchMemoryTool(),
     ]
