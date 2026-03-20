@@ -23,6 +23,7 @@ from app.issues.router import router as issues_router
 from app.entities.router import router as entities_router
 from app.automations.router import router as automations_router
 from app.integrations.router import router as integrations_router
+from app.integrations.action_router import router as integration_actions_router
 from app.channels.telegram import router as telegram_router
 from app.channels.websocket import router as websocket_router
 from app.tools.registry import register_all_tools
@@ -197,6 +198,7 @@ def create_app() -> FastAPI:
     app.include_router(automations_router)
     app.include_router(integrations_router)
     app.include_router(integrations_router, prefix="/api")
+    app.include_router(integration_actions_router)
     app.include_router(telegram_router)
     app.include_router(websocket_router)
 

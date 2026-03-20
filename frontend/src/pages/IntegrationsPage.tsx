@@ -1,14 +1,26 @@
 import { useState, useEffect } from 'react';
 import {
+  approveExternalActionRequest,
   connectIntegration,
+  createExternalActionRequest,
   deleteIntegration,
+  getExternalActionCatalog,
+  getExternalActionRequests,
+  getExternalResources,
   getIntegrationProviders,
   getIntegrations,
+  rejectExternalActionRequest,
   subscribeToRealtime,
   testIntegration,
 } from '../lib/api';
 import { Plug, Trash2, ExternalLink, RefreshCw, ShieldAlert, CheckCircle2 } from 'lucide-react';
-import type { Integration, IntegrationProvider } from '../types';
+import type {
+  ExternalActionCatalogItem,
+  ExternalActionRequest,
+  ExternalResource,
+  Integration,
+  IntegrationProvider,
+} from '../types';
 
 export default function IntegrationsPage() {
   const [integrations, setIntegrations] = useState<Integration[]>([]);
@@ -17,6 +29,10 @@ export default function IntegrationsPage() {
   const [webhookLabels, setWebhookLabels] = useState<Record<string, string>>({});
   const [busyProvider, setBusyProvider] = useState<string | null>(null);
   const [messages, setMessages] = useState<Record<string, string>>({});
+  const [actionCatalog, setActionCatalog] = useState<ExternalActionCatalogItem[]>([]);
+  const [actionRequests, setActionRequests] = useState<ExternalActionRequest[]>([]);
+  const [externalResources, setExternalResources] = useState<ExternalResource[]>([]);
+  const [actionInputs, setActionInputs] = useState<Record<string, string>>({});
 
   useEffect(() => {
     void loadPageData();
@@ -24,14 +40,24 @@ export default function IntegrationsPage() {
 
   useEffect(() => {
     return subscribeToRealtime(['integrations'], (event) => {
-      if (event.type === 'integrations.changed') {
+      if (
+        event.type === 'integrations.changed' ||
+        event.type === 'external_actions.changed' ||
+        event.type === 'external_resources.changed'
+      ) {
         void loadPageData();
       }
     });
   }, []);
 
   const loadPageData = async () => {
-    await Promise.all([loadIntegrations(), loadProviders()]);
+    await Promise.all([
+      loadIntegrations(),
+      loadProviders(),
+      loadExternalActionCatalog(),
+      loadExternalActionRequests(),
+      loadExternalResources(),
+    ]);
   };
 
   const loadIntegrations = async () => {
@@ -47,6 +73,33 @@ export default function IntegrationsPage() {
     try {
       const data = await getIntegrationProviders() as IntegrationProvider[];
       setProviders(data);
+    } catch {
+      // API may not be available
+    }
+  };
+
+  const loadExternalActionCatalog = async () => {
+    try {
+      const data = await getExternalActionCatalog() as ExternalActionCatalogItem[];
+      setActionCatalog(data);
+    } catch {
+      // API may not be available
+    }
+  };
+
+  const loadExternalActionRequests = async () => {
+    try {
+      const data = await getExternalActionRequests() as ExternalActionRequest[];
+      setActionRequests(data);
+    } catch {
+      // API may not be available
+    }
+  };
+
+  const loadExternalResources = async () => {
+    try {
+      const data = await getExternalResources() as ExternalResource[];
+      setExternalResources(data);
     } catch {
       // API may not be available
     }
@@ -126,6 +179,39 @@ export default function IntegrationsPage() {
     } finally {
       setBusyProvider(null);
     }
+  };
+
+  const handleCreateActionRequest = async (action: ExternalActionCatalogItem) => {
+    const rawPayload = actionInputs[action.id]?.trim();
+    if (!rawPayload) {
+      setMessages((current) => ({ ...current, [action.id]: 'JSON payload is required.' }));
+      return;
+    }
+    try {
+      const payload = JSON.parse(rawPayload) as Record<string, unknown>;
+      await createExternalActionRequest({
+        provider: action.provider,
+        action_name: action.id,
+        payload,
+      });
+      setMessages((current) => ({ ...current, [action.id]: 'Action request created.' }));
+      await loadPageData();
+    } catch (error) {
+      setMessages((current) => ({
+        ...current,
+        [action.id]: error instanceof Error ? error.message : 'Failed to create action request.',
+      }));
+    }
+  };
+
+  const handleApproveRequest = async (requestId: string) => {
+    await approveExternalActionRequest(requestId);
+    await loadPageData();
+  };
+
+  const handleRejectRequest = async (requestId: string) => {
+    await rejectExternalActionRequest(requestId);
+    await loadPageData();
   };
 
   const isConnected = (provider: string) =>
@@ -361,6 +447,112 @@ export default function IntegrationsPage() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {actionCatalog.length > 0 && (
+          <div className="max-w-2xl mt-8 space-y-4">
+            <h3 className="text-sm text-gray-500 uppercase">Remote Actions</h3>
+            {actionCatalog.map((action) => (
+              <div key={action.id} className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h4 className="font-medium text-sm">{action.id}</h4>
+                    <p className="text-sm text-gray-500 mt-1">{action.description}</p>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Provider: {action.provider} • Resource: {action.resource_type} • Risk: {action.risk_level}
+                      {action.requires_approval ? ' • approval required' : ''}
+                    </p>
+                  </div>
+                </div>
+                <textarea
+                  value={actionInputs[action.id] ?? ''}
+                  onChange={(event) =>
+                    setActionInputs((current) => ({ ...current, [action.id]: event.target.value }))
+                  }
+                  placeholder='JSON payload, e.g. {"parent_page_id":"...","title":"Launch Plan","content":"Draft"}'
+                  rows={4}
+                  className="mt-3 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-gray-100"
+                />
+                <div className="mt-3 flex items-center justify-between">
+                  {messages[action.id] ? (
+                    <p className="text-xs text-blue-300">{messages[action.id]}</p>
+                  ) : <div />}
+                  <button
+                    onClick={() => void handleCreateActionRequest(action)}
+                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition-colors"
+                  >
+                    Create Request
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {actionRequests.length > 0 && (
+          <div className="max-w-2xl mt-8">
+            <h3 className="text-sm text-gray-500 uppercase mb-3">Action Requests</h3>
+            <div className="space-y-3">
+              {actionRequests.map((request) => (
+                <div key={request.id} className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium">{request.action_name}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {request.provider} • {request.resource_type} • {request.status}
+                      </p>
+                      <pre className="mt-2 text-xs text-gray-400 whitespace-pre-wrap">
+                        {JSON.stringify(request.payload, null, 2)}
+                      </pre>
+                      {request.status === 'failed' && Boolean(request.result?.error) && (
+                        <p className="text-xs text-red-400 mt-2">{String(request.result.error)}</p>
+                      )}
+                    </div>
+                    {request.status === 'proposed' && (
+                      <div className="flex flex-col gap-2">
+                        <button
+                          onClick={() => void handleApproveRequest(request.id)}
+                          className="px-3 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm transition-colors"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => void handleRejectRequest(request.id)}
+                          className="px-3 py-2 bg-red-600/20 text-red-400 hover:bg-red-600/30 rounded-lg text-sm transition-colors"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {externalResources.length > 0 && (
+          <div className="max-w-2xl mt-8">
+            <h3 className="text-sm text-gray-500 uppercase mb-3">Managed Remote Resources</h3>
+            <div className="space-y-3">
+              {externalResources.map((resource) => (
+                <div key={resource.id} className="bg-gray-900/50 border border-gray-800 rounded-lg px-4 py-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium">{resource.name}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {resource.provider} • {resource.resource_type} • {resource.status}
+                      </p>
+                    </div>
+                    <div className="text-right text-xs text-gray-500">
+                      <p>Remote ID: {resource.remote_id}</p>
+                      {resource.last_synced_at && <p>Synced: {new Date(resource.last_synced_at).toLocaleString()}</p>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

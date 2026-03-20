@@ -192,6 +192,31 @@ export const testIntegration = (provider: string, payload?: Record<string, unkno
     body: JSON.stringify(payload ?? {}),
   });
 
+export const getExternalActionCatalog = () =>
+  request<unknown[]>('/api/external-actions/catalog');
+
+export const getExternalActionRequests = (status?: string) =>
+  request<unknown[]>(`/api/external-actions/requests${status ? `?status=${encodeURIComponent(status)}` : ''}`);
+
+export const createExternalActionRequest = (payload: Record<string, unknown>) =>
+  request<unknown>('/api/external-actions/requests', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+
+export const approveExternalActionRequest = (requestId: string) =>
+  request<unknown>(`/api/external-actions/requests/${requestId}/approve`, {
+    method: 'POST',
+  });
+
+export const rejectExternalActionRequest = (requestId: string) =>
+  request<unknown>(`/api/external-actions/requests/${requestId}/reject`, {
+    method: 'POST',
+  });
+
+export const getExternalResources = (provider?: string) =>
+  request<unknown[]>(`/api/external-actions/resources${provider ? `?provider=${encodeURIComponent(provider)}` : ''}`);
+
 // Admin
 export const getSystemStatus = () =>
   request<{ status: string; tools_registered: number; tool_names: string[] }>('/api/admin/status');

@@ -112,6 +112,50 @@ export interface IntegrationProvider {
   integration?: Integration;
 }
 
+export interface ExternalActionCatalogItem {
+  id: string;
+  provider: string;
+  resource_type: string;
+  description: string;
+  risk_level: 'low' | 'medium' | 'high';
+  requires_approval: boolean;
+}
+
+export interface ExternalActionRequest {
+  id: string;
+  user_id: string;
+  provider: string;
+  action_name: string;
+  resource_type: string;
+  status: 'proposed' | 'executed' | 'rejected' | 'failed';
+  risk_level: 'low' | 'medium' | 'high';
+  requires_approval: boolean;
+  payload: Record<string, unknown>;
+  result: Record<string, unknown>;
+  requested_by: string;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  executed_at?: string | null;
+  external_resource_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExternalResource {
+  id: string;
+  user_id: string;
+  provider: string;
+  resource_type: string;
+  remote_id: string;
+  name: string;
+  config: Record<string, unknown>;
+  status: string;
+  last_synced_at?: string | null;
+  last_error?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Issue {
   id: string;
   user_id: string;
